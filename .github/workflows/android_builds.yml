@@ -81,6 +81,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Save Godot build cache
+        if: always()
         uses: ./.github/actions/godot-cache-save
         with:
           cache-name: ${{ matrix.cache-name }}
