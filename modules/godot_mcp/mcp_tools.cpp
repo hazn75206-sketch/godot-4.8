@@ -17,7 +17,7 @@
 #include "scene/main/scene_tree.h"
 #include "scene/main/viewport.h"
 #include "scene/main/window.h"
-#include "scene/resources/input_event.h"
+#include "core/input/input_event.h"
 
 #if defined(TOOLS_ENABLED)
 
