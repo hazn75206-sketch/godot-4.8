@@ -30,6 +30,10 @@
 
 #include "project_manager.h"
 
+#ifdef MODULE_GODOT_MCP_ENABLED
+#include "modules/godot_mcp/mcp_server.h"
+#endif
+
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
 #include "core/input/input.h"
@@ -2027,6 +2031,9 @@ ProjectManager::ProjectManager() {
 	}
 
 	_update_size_limits();
+#ifdef MODULE_GODOT_MCP_ENABLED
+	McpServer::get_singleton()->start_if_enabled();
+#endif
 }
 
 ProjectManager::~ProjectManager() {

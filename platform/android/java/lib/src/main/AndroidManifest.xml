@@ -3,6 +3,13 @@
     android:versionCode="1"
     android:versionName="1.0">
 
+    <!-- Godot MCP: keep the MCP server alive in the background and show a
+         notification with a "Matikan server" stop action. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application>
 
         <!-- Records the version of the Godot library -->
@@ -26,6 +33,19 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/godot_provider_paths" />
         </provider>
+
+        <service
+            android:name=".mcp.McpServerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Godot MCP server (LAN AI tool access)" />
+        </service>
+
+        <receiver
+            android:name=".mcp.McpServerService$StopReceiver"
+            android:exported="false" />
 
     </application>
 

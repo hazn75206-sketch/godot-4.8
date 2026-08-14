@@ -1,0 +1,44 @@
+name: MCP Compile Check (linuxbsd editor)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'modules/godot_mcp/**'
+      - '.github/workflows/mcp_compile_check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  linuxbsd-editor:
+    name: Build linuxbsd editor (fast compile check)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Restore Godot build cache
+        uses: ./.github/actions/godot-cache-restore
+        with:
+          cache-name: mcp-linuxbsd
+        continue-on-error: true
+
+      - name: Setup Python and SCons
+        uses: ./.github/actions/godot-deps
+
+      - name: Compilation
+        uses: ./.github/actions/godot-build
+        with:
+          platform: linuxbsd
+          target: editor
+          scons-flags: dev_build=yes
+
+      - name: Save Godot build cache
+        uses: ./.github/actions/godot-cache-save
+        with:
+          cache-name: mcp-linuxbsd
+        continue-on-error: true

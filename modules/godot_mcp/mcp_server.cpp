@@ -1,0 +1,468 @@
+#include "mcp_server.h"
+
+#include "core/config/engine.h"
+#include "core/io/message_queue.h"
+#include "core/object/callable_method_pointer.h"
+#include "core/object/class_db.h"
+#include "core/os/thread.h"
+#include "core/os/time.h"
+#include "core/string/string_name.h"
+#include "core/variant/json.h"
+#include "editor/editor_interface.h"
+#include "editor/editor_settings.h"
+#include "mcp_android.h"
+#include "mcp_http.h"
+#include "mcp_tools.h"
+#include "scene/main/node.h"
+#include "scene/main/scene_tree.h"
+
+#include <chrono>
+
+McpServer *McpServer::singleton = nullptr;
+
+McpServer::McpServer() {
+	ERR_FAIL_COND_MSG(singleton != nullptr, "McpServer already exists.");
+	singleton = this;
+}
+
+McpServer::~McpServer() {
+	stop_server();
+	singleton = nullptr;
+}
+
+McpServer *McpServer::get_singleton() {
+	if (!singleton) {
+		singleton = memnew(McpServer);
+	}
+	return singleton;
+}
+
+void McpServer::cleanup() {
+	if (singleton) {
+		memdelete(singleton);
+		singleton = nullptr;
+	}
+}
+
+void McpServer::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("start_server"), &McpServer::start_server);
+	ClassDB::bind_method(D_METHOD("stop_server"), &McpServer::stop_server);
+	ClassDB::bind_method(D_METHOD("is_running"), &McpServer::is_running);
+	ClassDB::bind_method(D_METHOD("start_if_enabled"), &McpServer::start_if_enabled);
+	ClassDB::bind_method(D_METHOD("apply_config"), &McpServer::apply_config);
+	ClassDB::bind_method(D_METHOD("set_enabled", "enabled"), &McpServer::set_enabled);
+	ClassDB::bind_method(D_METHOD("get_mcp_url"), &McpServer::get_mcp_url);
+}
+
+bool McpServer::get_enabled() const {
+	EditorSettings *es = EditorSettings::get_singleton();
+	if (!es) {
+		return true;
+	}
+	return es->get_setting("mcp/enabled", true);
+}
+
+int McpServer::get_port() const {
+	EditorSettings *es = EditorSettings::get_singleton();
+	if (!es) {
+		return 8766;
+	}
+	return int(es->get_setting("mcp/port", 8766));
+}
+
+String McpServer::get_bind() const {
+	EditorSettings *es = EditorSettings::get_singleton();
+	if (!es) {
+		return "0.0.0.0";
+	}
+	return es->get_setting("mcp/bind", "0.0.0.0");
+}
+
+String McpServer::get_token() const {
+	EditorSettings *es = EditorSettings::get_singleton();
+	if (!es) {
+		return String();
+	}
+	return es->get_setting("mcp/token", String());
+}
+
+void McpServer::set_enabled(bool p_enabled) {
+	EditorSettings *es = EditorSettings::get_singleton();
+	if (!es) {
+		return;
+	}
+	es->set_setting("mcp/enabled", p_enabled);
+	es->save();
+	if (p_enabled) {
+		start_if_enabled();
+	} else {
+		stop_server();
+	}
+}
+
+String McpServer::get_mcp_url() const {
+	return "http://" + (running ? get_bind() : String("??")) + ":" + itos(get_port()) + "/mcp";
+}
+
+void McpServer::apply_config() {
+	bool was_running = running;
+	if (was_running) {
+		stop_server();
+	}
+	if (get_enabled()) {
+		start_server();
+	}
+}
+
+void McpServer::start_if_enabled() {
+	if (!Engine::get_singleton()->is_editor_hint()) {
+		return;
+	}
+	if (running) {
+		return;
+	}
+	if (!get_enabled()) {
+		return;
+	}
+	start_server();
+}
+
+void McpServer::start_server() {
+	if (running) {
+		return;
+	}
+	_update_from_settings();
+#ifdef TOOLS_ENABLED
+	_register_builtin_tools();
+#endif
+	http = std::make_unique<MCPHttpServer>(this);
+	if (!http->start()) {
+		http.reset();
+		ERR_PRINT(vformat("Godot MCP: failed to bind %s:%d", get_bind(), get_port()));
+		return;
+	}
+	running = true;
+	was_playing = false;
+	last_scene_id = 0;
+	last_tick = 0;
+	SceneTree *st = SceneTree::get_singleton();
+	if (st) {
+		st->connect(SNAME("process_frame"), callable_mp(this, &McpServer::_tick));
+	}
+	print_line(vformat("Godot MCP: server running on %s", get_mcp_url()));
+#ifdef ANDROID_ENABLED
+	mcp_android_notification_on();
+#endif
+}
+
+void McpServer::stop_server() {
+	if (!running) {
+		return;
+	}
+	running = false;
+	SceneTree *st = SceneTree::get_singleton();
+	if (st) {
+		st->disconnect(SNAME("process_frame"), callable_mp(this, &McpServer::_tick));
+	}
+	if (http) {
+		http->stop();
+		http.reset();
+	}
+	{
+		std::lock_guard<std::mutex> lk(sessions_mu);
+		sessions.clear();
+	}
+#ifdef ANDROID_ENABLED
+	mcp_android_notification_off();
+#endif
+	print_verbose("Godot MCP: server stopped");
+}
+
+void McpServer::_update_from_settings() {
+	EditorSettings *es = EditorSettings::get_singleton();
+	if (es) {
+		if (!es->has_setting("mcp/enabled")) {
+			es->set_setting("mcp/enabled", true);
+		}
+		if (!es->has_setting("mcp/port")) {
+			es->set_setting("mcp/port", 8766);
+		}
+		if (!es->has_setting("mcp/bind")) {
+			es->set_setting("mcp/bind", "0.0.0.0");
+		}
+		if (!es->has_setting("mcp/token")) {
+			es->set_setting("mcp/token", String());
+		}
+	}
+}
+
+String McpServer::_new_session_id() {
+	String base = String::num_uint64(Time::get_singleton()->get_ticks_usec(), 16) + String::num_uint64((uint64_t)(uintptr_t)this, 16);
+	String id = base.md5_text() + base.sha1_text().substr(0, 8);
+	return id.to_lower();
+}
+
+Variant McpServer::_handle_request(const String &p_session_id, const Variant &p_message, bool &r_broadcast_session, String &r_created_session) {
+	r_broadcast_session = false;
+	if (p_message.get_type() != Variant::DICTIONARY) {
+		return Dictionary{ { "jsonrpc", "2.0" }, { "id", Variant() }, { "error", Dictionary{ { "code", -32600 }, { "message", "Invalid Request" } } } };
+	}
+	Dictionary msg = p_message;
+	String method = msg.get("method", String());
+	Variant id = msg.get("id", Variant());
+	bool has_id = msg.has("id");
+	Dictionary params = msg.get("params", Dictionary());
+
+	if (method == "initialize") {
+		String client_name = "unknown";
+		String client_version = "";
+		if (params.has("clientInfo")) {
+			Dictionary ci = params["clientInfo"];
+			client_name = ci.get("name", "unknown");
+			client_version = ci.get("version", "");
+		}
+		String proto = params.get("protocolVersion", "2024-11-05");
+		String sid = p_session_id;
+		if (sid.is_empty()) {
+			sid = _new_session_id();
+			r_created_session = sid;
+		}
+		{
+			std::lock_guard<std::mutex> lk(sessions_mu);
+			Session s;
+			s.id = sid;
+			s.protocol_version = proto;
+			sessions[sid] = s;
+		}
+		protocol_version = proto;
+		print_line(vformat("Godot MCP: client '%s %s' connected (session %s, protocol %s)", client_name, client_version, sid, proto));
+		Dictionary caps;
+		caps["tools"] = Dictionary{ { "listChanged", true } };
+		caps["logging"] = Dictionary{};
+		Dictionary result;
+		result["protocolVersion"] = proto;
+		result["capabilities"] = caps;
+		result["serverInfo"] = Dictionary{ { "name", server_name }, { "version", server_version } };
+		Dictionary d;
+		d["jsonrpc"] = "2.0";
+		d["id"] = id;
+		d["result"] = result;
+		return d;
+	}
+
+	if (method == "notifications/initialized" || method == "initialized") {
+		return Variant();
+	}
+
+	if (method == "ping") {
+		return Dictionary{ { "jsonrpc", "2.0" }, { "id", id }, { "result", Dictionary{} } };
+	}
+
+	if (method == "tools/list" || method == "tools/list_changed") {
+		Array tools_arr;
+#ifdef TOOLS_ENABLED
+		{
+			std::lock_guard<std::mutex> lk(tools_mu);
+			for (const auto &pair : tools) {
+				Dictionary t;
+				t["name"] = pair.second.name;
+				t["description"] = pair.second.description;
+				t["inputSchema"] = pair.second.schema;
+				tools_arr.append(t);
+			}
+		}
+#endif
+		Dictionary result_root;
+		result_root["tools"] = tools_arr;
+		return Dictionary{ { "jsonrpc", "2.0" }, { "id", id }, { "result", result_root } };
+	}
+
+	if (method == "tools/call") {
+		String name = params.get("name", String());
+		Dictionary arguments = params.get("arguments", Dictionary());
+		Dictionary result_root = _execute_tool(name, arguments);
+		return Dictionary{ { "jsonrpc", "2.0" }, { "id", id }, { "result", result_root } };
+	}
+
+	if (method == "resources/list") {
+		return Dictionary{ { "jsonrpc", "2.0" }, { "id", id }, { "result", Dictionary{ { "resources", Array() } } } };
+	}
+
+	if (method == "logging/setLevel") {
+		return Dictionary{ { "jsonrpc", "2.0" }, { "id", id }, { "result", Dictionary{} } };
+	}
+
+	if (method == "shutdown" || method == "exit") {
+		return Variant();
+	}
+
+	return Dictionary{ { "jsonrpc", "2.0" }, { "id", id }, { "error", Dictionary{ { "code", -32601 }, { "message", vformat("Method not found: %s", method) } } } };
+}
+
+Dictionary McpServer::handle_jsonrpc(const String &p_session_id, const Variant &p_message, bool &r_broadcast_session, String &r_created_session) {
+	Variant v = _handle_request(p_session_id, p_message, r_broadcast_session, r_created_session);
+	if (v.get_type() == Variant::NIL) {
+		return Dictionary();
+	}
+	return v;
+}
+
+Variant McpServer::_execute_tool(const String &p_name, const Dictionary &p_arguments) {
+#ifdef TOOLS_ENABLED
+	ToolDef def;
+	{
+		std::lock_guard<std::mutex> lk(tools_mu);
+		auto it = tools.find(p_name);
+		if (it == tools.end()) {
+			return Dictionary{ { "content", Array{ Dictionary{ { "type", "text" }, { "text", vformat("Unknown tool: %s", p_name) } } } }, { "isError", true } };
+		}
+		def = it->second;
+	}
+	Variant out = run_tool(def.handler, p_arguments);
+	if (out.get_type() == Variant::DICTIONARY) {
+		Dictionary d = out;
+		if (d.has("content")) {
+			return d;
+		}
+	}
+	// Fallback: wrap the raw result as text.
+	Dictionary content_item;
+	content_item["type"] = "text";
+	content_item["text"] = JSON::stringify(out);
+	return Dictionary{ { "content", Array{ content_item } }, { "isError", false } };
+#else
+	return Dictionary{ { "content", Array{ Dictionary{ { "type", "text" }, { "text", "MCP tools unavailable in this build." } } } }, { "isError", true } };
+#endif
+}
+
+void McpServer::_send_sse_to_session(const Session &p_session, const String &p_frame) {
+	if (!p_session.sse_conn || !p_session.sse_conn->open) {
+		return;
+	}
+	ClientConn *c = p_session.sse_conn;
+	std::lock_guard<std::mutex> lk(c->mu);
+	c->out_queue.push_back(p_frame);
+}
+
+void McpServer::broadcast_notification(const String &p_method, const Dictionary &p_params) {
+	if (!running) {
+		return;
+	}
+	Dictionary msg;
+	msg["jsonrpc"] = "2.0";
+	msg["method"] = p_method;
+	msg["params"] = p_params;
+	String frame = "event: message\ndata: " + JSON::stringify(msg) + "\n\n";
+	std::lock_guard<std::mutex> lk(sessions_mu);
+	for (auto &pair : sessions) {
+		_send_sse_to_session(pair.second, frame);
+	}
+}
+
+void McpServer::_register_builtin_tools() {
+	mcp_register_tools(this);
+}
+
+void McpServer::register_tool(const String &p_name, const String &p_description, const Dictionary &p_schema, Variant (*p_handler)(const Dictionary &p_args)) {
+#ifdef TOOLS_ENABLED
+	std::lock_guard<std::mutex> lk(tools_mu);
+	ToolDef def;
+	def.name = p_name;
+	def.description = p_description;
+	def.schema = p_schema;
+	def.handler = p_handler;
+	tools[p_name] = def;
+#endif
+}
+
+void McpServer::_emit_events() {
+	EditorInterface *ei = EditorInterface::get_singleton();
+	if (!ei) {
+		return;
+	}
+#ifdef TOOLS_ENABLED
+	bool playing = ei->is_playing_scene();
+	if (playing != was_playing) {
+		was_playing = playing;
+		broadcast_notification(playing ? "notifications/game_started" : "notifications/game_stopped", Dictionary{ { "playing", playing } });
+	}
+#endif
+	Node *root = ei->get_edited_scene_root();
+	uint64_t sid = 0;
+	if (root) {
+		sid = root->get_instance_id();
+		String path = root->get_scene_file_path();
+		if (sid != last_scene_id) {
+			last_scene_id = sid;
+			broadcast_notification("notifications/scene_changed", Dictionary{ { "path", path }, { "name", root->get_name() }, { "class", root->get_class() } });
+		}
+	} else if (last_scene_id != 0) {
+		last_scene_id = 0;
+		broadcast_notification("notifications/scene_changed", Dictionary{ { "path", String() }, { "name", String() }, { "class", String() } });
+	}
+}
+
+void McpServer::_tick() {
+	if (!running) {
+		return;
+	}
+	uint64_t now = Time::get_singleton()->get_ticks_msec();
+	if (last_tick == 0) {
+		last_tick = now;
+	}
+	if (now - last_tick < 250) {
+		return;
+	}
+	last_tick = now;
+	_emit_events();
+}
+
+Variant McpServer::run_tool(Variant (*p_handler)(const Dictionary &p_args), const Dictionary &p_arguments, int p_timeout_ms) {
+	if (Thread::is_main_thread()) {
+		return p_handler(p_arguments);
+	}
+#ifdef TOOLS_ENABLED
+	MainThreadTask task;
+	task.handler = p_handler;
+	task.args = p_arguments;
+	{
+		std::lock_guard<std::mutex> lk(queue_mu);
+		queue.push_back(&task);
+	}
+	MessageQueue::get_singleton()->push_callable(callable_mp(this, &McpServer::_drain_tasks));
+	{
+		std::unique_lock<std::mutex> lk(task.mu);
+		task.cv.wait_for(lk, std::chrono::milliseconds(p_timeout_ms), [&] { return task.done; });
+	}
+	if (!task.done) {
+		task.done = true;
+		ERR_PRINT("Godot MCP: tool timed out on main thread");
+		return Dictionary{ { "content", Array{ Dictionary{ { "type", "text" }, { "text", "Main thread timeout" } } } }, { "isError", true } };
+	}
+	return task.result;
+#else
+	String err = "Main thread execution unavailable.";
+	Dictionary econtent;
+	econtent["type"] = "text";
+	econtent["text"] = err;
+	return Dictionary{ { "content", Array{ econtent } }, { "isError", true } };
+#endif
+}
+
+void McpServer::_drain_tasks() {
+#ifdef TOOLS_ENABLED
+	std::vector<MainThreadTask *> tasks;
+	{
+		std::lock_guard<std::mutex> lk(queue_mu);
+		tasks.swap(queue);
+	}
+	for (MainThreadTask *t : tasks) {
+		std::lock_guard<std::mutex> lk(t->mu);
+		if (!t->done) {
+			t->result = t->handler(t->args);
+			t->done = true;
+		}
+		t->cv.notify_all();
+	}
+#endif
+}

@@ -68,6 +68,9 @@
 #include "editor/docks/signals_dock.h"
 #include "editor/editor_data.h"
 #include "editor/editor_interface.h"
+#ifdef MODULE_GODOT_MCP_ENABLED
+#include "modules/godot_mcp/mcp_plugin.h"
+#endif
 #include "editor/editor_log.h"
 #include "editor/editor_main_screen.h"
 #include "editor/editor_string_names.h"
@@ -9506,6 +9509,9 @@ EditorNode::EditorNode() {
 	add_editor_plugin(memnew(CanvasItemEditorPlugin));
 	add_editor_plugin(memnew(Node3DEditorPlugin));
 	add_editor_plugin(memnew(ScriptEditorPlugin));
+#ifdef MODULE_GODOT_MCP_ENABLED
+	add_editor_plugin(memnew(McpEditorPlugin));
+#endif
 
 	if (!Engine::get_singleton()->is_recovery_mode_hint()) {
 		add_editor_plugin(get_game_view_plugin());
