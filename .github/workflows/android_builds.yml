@@ -2,6 +2,9 @@ name: 🤖 Android Builds
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 # Global Settings
 env:
   SCONS_FLAGS: >-
