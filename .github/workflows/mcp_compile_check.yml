@@ -2,10 +2,6 @@ name: MCP Compile Check (linuxbsd editor)
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'modules/godot_mcp/**'
-      - '.github/workflows/mcp_compile_check.yml'
 
 permissions:
   contents: read
