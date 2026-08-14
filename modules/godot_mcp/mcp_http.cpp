@@ -20,6 +20,7 @@ struct MCPHttpServer::Connection {
 	bool chunked = false;
 	bool request_ready = false;
 	bool is_sse = false;
+	bool streaming = false;
 	String session_id;
 	bool session_created = false;
 	uint64_t last_activity = 0;
@@ -122,7 +123,7 @@ void MCPHttpServer::_connection_loop(Connection *p_conn) {
 			}
 		}
 
-		if (p_conn->is_sse) {
+		if (p_conn->is_sse || p_conn->streaming) {
 			{
 				std::lock_guard<std::mutex> lk(p_conn->mu);
 				for (const String &f : p_conn->out_queue) {
@@ -357,7 +358,7 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 		String resp_head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\n" + extra + "\r\n";
 		CharString cs = resp_head.utf8();
 		p_conn->peer->put_data((const uint8_t *)cs.get_data(), cs.length());
-		p_conn->is_sse = true;
+		p_conn->streaming = true;
 		_write_sse(p_conn, "event: message\ndata: " + body_json + "\n\n");
 		p_conn->last_activity = Time::get_singleton()->get_ticks_msec();
 		{
