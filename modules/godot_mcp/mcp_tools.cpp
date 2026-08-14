@@ -448,8 +448,9 @@ static Variant _tool_get_node_property(const Dictionary &p_args) {
 	if (prop.is_empty()) {
 		return mcp_tool_ret_error("Missing 'property'.");
 	}
-	Variant v;
-	if (!node->get(prop, &v)) {
+	bool ok = false;
+	Variant v = node->get(prop, &ok);
+	if (!ok) {
 		return mcp_tool_ret_error(vformat("Property not found: %s", prop));
 	}
 	Dictionary out;
@@ -470,8 +471,8 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 		return mcp_tool_ret_error("Missing 'property'.");
 	}
 	Variant value = p_args.get("value", Variant());
-	Variant old;
-	node->get(prop, &old);
+	bool ok = false;
+	Variant old = node->get(prop, &ok);
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
 	ur->create_action(vformat("MCP: set %s.%s", p_args.get("path", String()), prop));
 	ur->add_do_method(node, "set", prop, value);
