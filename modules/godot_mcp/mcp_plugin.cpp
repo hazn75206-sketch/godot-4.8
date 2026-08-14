@@ -2,7 +2,9 @@
 
 #include "core/config/engine.h"
 #include "core/math/color.h"
+#include "core/object/callable_method_pointer.h"
 #include "core/os/time.h"
+#include "core/string/string_name.h"
 #include "editor/settings/editor_settings.h"
 #include "mcp_server.h"
 #include "scene/gui/box_container.h"
