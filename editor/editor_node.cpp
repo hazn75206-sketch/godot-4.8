@@ -68,9 +68,6 @@
 #include "editor/docks/signals_dock.h"
 #include "editor/editor_data.h"
 #include "editor/editor_interface.h"
-#ifdef MODULE_GODOT_MCP_ENABLED
-#include "modules/godot_mcp/mcp_plugin.h"
-#endif
 #include "editor/editor_log.h"
 #include "editor/editor_main_screen.h"
 #include "editor/editor_string_names.h"
@@ -214,6 +211,9 @@
 #endif // ANDROID_ENABLED
 
 #include "modules/modules_enabled.gen.h" // For gdscript, mono.
+#ifdef MODULE_GODOT_MCP_ENABLED
+#include "modules/godot_mcp/mcp_plugin.h"
+#endif
 
 #include <cstdlib>
 

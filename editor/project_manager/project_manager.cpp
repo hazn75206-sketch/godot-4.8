@@ -30,10 +30,6 @@
 
 #include "project_manager.h"
 
-#ifdef MODULE_GODOT_MCP_ENABLED
-#include "modules/godot_mcp/mcp_server.h"
-#endif
-
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
 #include "core/input/input.h"
@@ -85,6 +81,9 @@
 #endif // PHYSICS_3D_DISABLED
 
 #include "modules/modules_enabled.gen.h" // For gdscript, mono. (For editor help highlighter).
+#ifdef MODULE_GODOT_MCP_ENABLED
+#include "modules/godot_mcp/mcp_server.h"
+#endif
 
 constexpr int GODOT4_CONFIG_VERSION = 5;
 
