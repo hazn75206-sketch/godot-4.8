@@ -18,6 +18,7 @@
 #include "scene/main/viewport.h"
 #include "scene/main/window.h"
 #include "core/input/input_event.h"
+#include "core/object/class_db.h"
 
 #if defined(TOOLS_ENABLED)
 
@@ -86,8 +87,8 @@ static void _walk_assets(const String &p_dir, Array &r_out, const String &p_patt
 	if (p_depth > 32) {
 		return;
 	}
-	DirAccess *d = DirAccess::open(p_dir);
-	if (!d) {
+	Ref<DirAccess> d = DirAccess::open(p_dir);
+	if (d.is_null()) {
 		return;
 	}
 	d->list_dir_begin();
@@ -110,14 +111,14 @@ static void _walk_assets(const String &p_dir, Array &r_out, const String &p_patt
 			if (_wildcard_match(p_pattern, full.replace("res://", ""))) {
 				Dictionary entry;
 				entry["path"] = full.replace("res://", "");
-				entry["size"] = d->get_size();
+				entry["size"] = FileAccess::get_size(full);
 				r_out.append(entry);
 			}
 		}
 		f = d->get_next();
 	}
 	d->list_dir_end();
-	memdelete(d);
+	d.unref();
 }
 
 static void _walk_scene(Node *p_node, Node *p_root, Dictionary &r_out) {
@@ -125,24 +126,32 @@ static void _walk_scene(Node *p_node, Node *p_root, Dictionary &r_out) {
 	r_out["type"] = p_node->get_class();
 	r_out["path"] = p_root->get_path_to(p_node);
 	if (p_node->get_script_instance()) {
-		r_out["script"] = p_node->get_script()->get_path();
+		Ref<Script> scr = p_node->get_script();
+		if (scr.is_valid()) {
+			r_out["script"] = scr->get_path();
+		}
 	}
 	Dictionary props;
 	if (p_node->has_method("get")) {
-		Variant v;
-		if (p_node->get("position", &v) && (v.get_type() == Variant::VECTOR2 || v.get_type() == Variant::VECTOR3)) {
+		bool ok = false;
+		Variant v = p_node->get("position", &ok);
+		if (ok && (v.get_type() == Variant::VECTOR2 || v.get_type() == Variant::VECTOR3)) {
 			props["position"] = v;
 		}
-		if (p_node->get("rotation", &v)) {
+		v = p_node->get("rotation", &ok);
+		if (ok) {
 			props["rotation"] = v;
 		}
-		if (p_node->get("scale", &v) && (v.get_type() == Variant::VECTOR2 || v.get_type() == Variant::VECTOR3)) {
+		v = p_node->get("scale", &ok);
+		if (ok && (v.get_type() == Variant::VECTOR2 || v.get_type() == Variant::VECTOR3)) {
 			props["scale"] = v;
 		}
-		if (p_node->get("visible", &v) && v.get_type() == Variant::BOOL) {
+		v = p_node->get("visible", &ok);
+		if (ok && v.get_type() == Variant::BOOL) {
 			props["visible"] = v;
 		}
-		if (p_node->get("text", &v) && (v.get_type() == Variant::STRING || v.get_type() == Variant::STRING_NAME)) {
+		v = p_node->get("text", &ok);
+		if (ok && (v.get_type() == Variant::STRING || v.get_type() == Variant::STRING_NAME)) {
 			props["text"] = v;
 		}
 	}
@@ -156,7 +165,7 @@ static void _walk_scene(Node *p_node, Node *p_root, Dictionary &r_out) {
 		if (c->get_owner() != p_root && c != p_root) {
 			continue;
 		}
-		if (c->get_name().to_lower() == "editorpaint" && c->get_class() == "SubViewport") {
+		if (String(c->get_name()).to_lower() == "editorpaint" && c->get_class() == "SubViewport") {
 			continue;
 		}
 		Dictionary child;
@@ -632,7 +641,7 @@ static Key _key_from_name(const String &p_name) {
 		{ "SPACE", Key::SPACE }, { "ENTER", Key::ENTER }, { "RETURN", Key::ENTER }, { "ESCAPE", Key::ESCAPE },
 		{ "TAB", Key::TAB }, { "SHIFT", Key::SHIFT }, { "CTRL", Key::CTRL }, { "CONTROL", Key::CTRL },
 		{ "ALT", Key::ALT }, { "LEFT", Key::LEFT }, { "RIGHT", Key::RIGHT }, { "UP", Key::UP }, { "DOWN", Key::DOWN },
-		{ "BACKSPACE", Key::BACKSPACE }, { "DELETE", Key::DELETE }, { "HOME", Key::HOME }, { "END", Key::END },
+		{ "BACKSPACE", Key::BACKSPACE }, { "DELETE", Key::KEY_DELETE }, { "HOME", Key::HOME }, { "END", Key::END },
 		{ "PAGEUP", Key::PAGEUP }, { "PAGEDOWN", Key::PAGEDOWN }, { "F1", Key::F1 }, { "F2", Key::F2 },
 		{ "F3", Key::F3 }, { "F4", Key::F4 }, { "F5", Key::F5 }, { "F6", Key::F6 }, { "F7", Key::F7 },
 		{ "F8", Key::F8 }, { "F9", Key::F9 }, { "F10", Key::F10 }, { "F11", Key::F11 }, { "F12", Key::F12 },

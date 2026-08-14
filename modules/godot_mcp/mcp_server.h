@@ -62,6 +62,8 @@ public:
 
 	Variant run_tool(Variant (*p_handler)(const Dictionary &p_args), const Dictionary &p_arguments, int p_timeout_ms = 20000);
 
+	void register_tool(const String &p_name, const String &p_description, const Dictionary &p_schema, Variant (*p_handler)(const Dictionary &p_args));
+
 protected:
 	static void _bind_methods();
 
@@ -97,8 +99,6 @@ private:
 	};
 	std::map<String, ToolDef> tools;
 	std::mutex tools_mu;
-
-	void register_tool(const String &p_name, const String &p_description, const Dictionary &p_schema, Variant (*p_handler)(const Dictionary &p_args));
 
 	std::vector<MainThreadTask *> queue;
 	std::mutex queue_mu;
