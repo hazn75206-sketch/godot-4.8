@@ -377,7 +377,8 @@ void MCPHttpServer::_send_response(Connection *p_conn, int p_status, const Strin
 	} else if (p_status == 405) {
 		status_text = "Method Not Allowed";
 	}
-	String resp = vformat("HTTP/1.1 %d %s\r\nContent-Type: %s\r\nCache-Control: no-store\r\nContent-Length: %d\r\n%s\r\n%s", p_status, status_text, p_content_type, p_body.length(), p_extra_headers, p_body);
+	CharString body_utf8 = p_body.utf8();
+	String resp = vformat("HTTP/1.1 %d %s\r\nContent-Type: %s\r\nCache-Control: no-store\r\nContent-Length: %d\r\n%s\r\n%s", p_status, status_text, p_content_type, (int)body_utf8.length(), p_extra_headers, p_body);
 	CharString cs = resp.utf8();
 	p_conn->peer->put_data((const uint8_t *)cs.get_data(), cs.length());
 }
