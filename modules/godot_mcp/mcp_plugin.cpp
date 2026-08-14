@@ -2,7 +2,7 @@
 
 #include "core/config/engine.h"
 #include "core/math/color.h"
-#include "core/object/callable_method_pointer.h"
+#include "core/object/callable_mp.h"
 #include "core/os/time.h"
 #include "core/string/string_name.h"
 #include "editor/settings/editor_settings.h"

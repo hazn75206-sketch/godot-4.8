@@ -1,8 +1,8 @@
 #include "mcp_server.h"
 
 #include "core/config/engine.h"
-#include "core/io/message_queue.h"
-#include "core/object/callable_method_pointer.h"
+#include "core/object/message_queue.h"
+#include "core/object/callable_mp.h"
 #include "core/object/class_db.h"
 #include "core/os/thread.h"
 #include "core/os/time.h"
