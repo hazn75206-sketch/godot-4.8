@@ -60,7 +60,7 @@ bool McpServer::get_enabled() const {
 		return true;
 	}
 		if (!es->has_setting("mcp/enabled")) {
-		return true;
+		return false;
 	}
 	return bool(es->get_setting("mcp/enabled"));
 }
