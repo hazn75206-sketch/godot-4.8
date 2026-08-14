@@ -59,7 +59,7 @@ bool McpServer::get_enabled() const {
 	if (!es) {
 		return true;
 	}
-	return es->get_setting("mcp/enabled", true);
+	return es->has_setting("mcp/enabled") ? bool(es->get_setting("mcp/enabled")) : true;
 }
 
 int McpServer::get_port() const {
@@ -67,7 +67,7 @@ int McpServer::get_port() const {
 	if (!es) {
 		return 8766;
 	}
-	return int(es->get_setting("mcp/port", 8766));
+	return es->has_setting("mcp/port") ? int(es->get_setting("mcp/port")) : 8766;
 }
 
 String McpServer::get_bind() const {
@@ -75,7 +75,7 @@ String McpServer::get_bind() const {
 	if (!es) {
 		return "0.0.0.0";
 	}
-	return es->get_setting("mcp/bind", "0.0.0.0");
+	return es->has_setting("mcp/bind") ? es->get_setting("mcp/bind") : "0.0.0.0";
 }
 
 String McpServer::get_token() const {
@@ -83,7 +83,7 @@ String McpServer::get_token() const {
 	if (!es) {
 		return String();
 	}
-	return es->get_setting("mcp/token", String());
+	return es->has_setting("mcp/token") ? es->get_setting("mcp/token") : String();
 }
 
 void McpServer::set_enabled(bool p_enabled) {
@@ -210,7 +210,6 @@ Variant McpServer::_handle_request(const String &p_session_id, const Variant &p_
 	Dictionary msg = p_message;
 	String method = msg.get("method", String());
 	Variant id = msg.get("id", Variant());
-	bool has_id = msg.has("id");
 	Dictionary params = msg.get("params", Dictionary());
 
 	if (method == "initialize") {
@@ -307,7 +306,7 @@ Dictionary McpServer::handle_jsonrpc(const String &p_session_id, const Variant &
 	return v;
 }
 
-Variant McpServer::_execute_tool(const String &p_name, const Dictionary &p_arguments) {
+Dictionary McpServer::_execute_tool(const String &p_name, const Dictionary &p_arguments) {
 #ifdef TOOLS_ENABLED
 	ToolDef def;
 	{

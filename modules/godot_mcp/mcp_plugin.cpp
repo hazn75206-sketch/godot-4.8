@@ -15,7 +15,7 @@
 #include "scene/gui/panel_container.h"
 #include "scene/gui/separator.h"
 #include "scene/gui/spin_box.h"
-#include "servers/text_server.h"
+#include "servers/text/text_server.h"
 
 McpEditorPlugin::McpEditorPlugin() {
 }
