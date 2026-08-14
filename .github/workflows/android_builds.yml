@@ -5,7 +5,6 @@ on:
 # Global Settings
 env:
   SCONS_FLAGS: >-
-    dev_mode=yes
     module_text_server_fb_enabled=yes
 
 jobs:
@@ -23,6 +22,7 @@ jobs:
             scons-flags: >-
               arch=arm64
               production=yes
+              -j4
 
     steps:
       - name: Checkout
@@ -40,6 +40,15 @@ jobs:
         uses: ./.github/actions/godot-cache-restore
         with:
           cache-name: ${{ matrix.cache-name }}
+        continue-on-error: true
+
+      - name: Restore Gradle cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle|${{ hashFiles('platform/android/java/**/*.gradle*', 'platform/android/java/gradle.properties') }}
         continue-on-error: true
 
       - name: Setup Python and SCons
@@ -79,6 +88,16 @@ jobs:
         uses: ./.github/actions/godot-cache-save
         with:
           cache-name: ${{ matrix.cache-name }}
+        continue-on-error: true
+
+      - name: Save Gradle cache
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle|${{ hashFiles('platform/android/java/**/*.gradle*', 'platform/android/java/gradle.properties') }}
         continue-on-error: true
 
       - name: Generate Godot editor
