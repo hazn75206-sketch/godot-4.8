@@ -1,7 +1,7 @@
 #include "mcp_http.h"
 
 #include "core/os/time.h"
-#include "core/variant/json.h"
+#include "core/io/json.h"
 #include "mcp_server.h"
 
 #include <chrono>

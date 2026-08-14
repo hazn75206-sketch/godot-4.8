@@ -7,7 +7,7 @@
 #include "core/os/thread.h"
 #include "core/os/time.h"
 #include "core/string/string_name.h"
-#include "core/variant/json.h"
+#include "core/io/json.h"
 #include "editor/editor_interface.h"
 #include "editor/editor_settings.h"
 #include "mcp_android.h"

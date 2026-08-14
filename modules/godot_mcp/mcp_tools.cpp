@@ -9,7 +9,7 @@
 #include "editor/editor_undo_redo_manager.h"
 #include "core/os/os.h"
 #include "core/string/ustring.h"
-#include "core/variant/json.h"
+#include "core/io/json.h"
 #include "editor/editor_interface.h"
 #include "editor/editor_settings.h"
 #include "mcp_server.h"
