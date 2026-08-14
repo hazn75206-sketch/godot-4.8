@@ -44,6 +44,10 @@
         </service>
 
         <receiver
+            android:name=".mcp.McpServerService$CopyUrlReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".mcp.McpServerService$StopReceiver"
             android:exported="false" />
 

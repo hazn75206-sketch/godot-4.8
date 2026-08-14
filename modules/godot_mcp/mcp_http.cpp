@@ -272,6 +272,10 @@ bool MCPHttpServer::_check_auth(Connection *p_conn) {
 
 void MCPHttpServer::_handle_http(Connection *p_conn) {
 	if (p_conn->method == "GET" && p_conn->path == "/sse") {
+		if (owner->get_transport() == 1) {
+			_send_response(p_conn, 404, "application/json", "{\"error\":\"SSE transport disabled\"}", "");
+			return;
+		}
 		if (!_check_auth(p_conn)) {
 			_send_response(p_conn, 401, "application/json", "{\"error\":\"unauthorized\"}", "");
 			return;
@@ -314,6 +318,10 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 
 	if (p_conn->path != "/mcp" && p_conn->path != "/messages") {
 		_send_response(p_conn, 404, "application/json", "{\"error\":\"not found\"}", "");
+		return;
+	}
+	if (owner->get_transport() == 2) {
+		_send_response(p_conn, 404, "application/json", "{\"error\":\"streamable HTTP disabled\"}", "");
 		return;
 	}
 

@@ -107,6 +107,19 @@ jobs:
           cd ../../..
           ls -l bin/android_editor_builds/
 
+      - name: Release APK (per-build)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l bin/android_editor_builds/
+          TAG="mcp-editor-$(date +%Y%m%d-%H%M)-${GITHUB_SHA:0:7}"
+          gh release create "$TAG" bin/android_editor_builds/*.apk \
+            --title "Godot 4.8-dev Editor arm64 (MCP) $TAG" \
+            --notes "Download APK langsung (bukan zip). Setelah editor terbuka, aktifkan MCP di Editor > Editor Settings > mcp. URL LAN tampil di notifikasi 'Server MCP hidup' (pilih 'Salin URL MCP')."
+          APK=$(ls bin/android_editor_builds/*.apk | head -1)
+          echo "### APK editor arm64 (download langsung)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[$APK](https://github.com/${{ github.repository }}/releases/tag/$TAG)" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact
         with:

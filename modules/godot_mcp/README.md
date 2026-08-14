@@ -5,24 +5,25 @@ AI agent bisa mengontrol editor dan membuat game: scene, node, script, run game,
 
 ## Fitur
 
-- **Transport**: Streamable HTTP (`POST /mcp`) dan SSE (`GET /sse` + `POST /messages`)
-- **Jaringan**: `0.0.0.0` (LAN) dan localhost — client di perangkat lain bisa langsung konek
-- **Auto-start**: server aktif otomatis saat aplikasi dibuka, **tanpa perlu buka project** (Project Manager), dan tetap tersedia di dalam project (dock "Godot MCP Server")
-- **Notifikasi Android**: "Server MCP hidup" di status bar + tombol **"Matikan server"** untuk mematikan MCP tanpa membuka aplikasi (foreground service → server tetap jalan saat editor di-background)
+- **Transport**: Streamable HTTP (`POST /mcp`) dan SSE (`GET /sse` + `POST /messages`) — bisa dipilih lewat setting `mcp/transport`
+- **Jaringan**: pilihan `mcp/bind_mode` = LAN (`0.0.0.0`, IP di-generate otomatis) atau Localhost saja — URL siap pakai tampil di notifikasi & bisa disalin
+- **Auto-start (default OFF)**: aktifkan `mcp/enabled` di Editor > Editor Settings; server aktif tanpa perlu buka project (Project Manager) dan di dalam project
+- **Notifikasi Android**: "Server MCP hidup" + tombol **"Salin URL MCP"** (copy clipboard) dan **"Matikan server"** (foreground service → server tetap jalan saat editor di-background)
 - **Token auth opsional** untuk akses LAN
-- **~25 tools**: project info, list/read/write file, project settings, scene tree, open/create/save scene, add/remove/rename/reparent node, get/set property (undoable), read/write/attach script, run/stop game, send input, screenshot (PNG), server info
+- **26 tools**: project info, list/read/write file, project settings, scene tree, open/create/save scene, add/remove/rename/reparent node, get/set property (undoable), read/write/attach script, run/stop game, send input, screenshot (PNG), server info
 - **Notifikasi MCP ke client**: `notifications/scene_changed`, `notifications/game_started`, `notifications/game_stopped`
 
-## Konfigurasi (EditorSettings, tersimpan global)
+## Konfigurasi (Editor > Editor Settings, cari "mcp")
 
 | Setting | Default | Keterangan |
 |---|---|---|
-| `mcp/enabled` | `true` | aktif/tidak |
+| `mcp/enabled` | `false` | aktif/tidak (server otomatis start setelah diaktifkan) |
+| `mcp/transport` | `0` (Both) | Both (Streamable HTTP + SSE), Streamable HTTP only, SSE only |
+| `mcp/bind_mode` | `0` (LAN) | LAN = akses dari perangkat lain (IP dibuat otomatis); Localhost = `127.0.0.1` saja |
 | `mcp/port` | `8766` | port HTTP |
-| `mcp/bind` | `0.0.0.0` | `0.0.0.0` = LAN + localhost; `127.0.0.1` = localhost saja |
 | `mcp/token` | (kosong) | jika diisi, client wajib kirim `Authorization: Bearer <token>` |
 
-Bisa diubah dari dock editor (Project > Dock kanan bawah "Godot MCP Server") atau file settings editor.
+Perubahan setting diterapkan otomatis (server restart sendiri tanpa perlu buka project).
 
 ## Endpoint
 
@@ -90,4 +91,12 @@ claude mcp add --transport http godot http://<ip-tablet>:8766/mcp --header "Auth
 
 - Screenshot game berjalan: pada editor Android, game berjalan di proses terpisah → screenshot diambil dari viewport editor/simulasi, bukan proses game.
 - `send_input` kontrol berjalan untuk game yang dijalankan dalam proses yang sama (desktop). Di Android gunakan `action`-based input.
-- Saat MCP dimatikan lewat notifikasi, server berhenti sampai dinyalakan lagi (dari dock editor, aplikasi di-restart, atau tombol Enable).
+- Saat MCP dimatikan lewat notifikasi, server berhenti sampai dinyalakan lagi (dari Editor Settings `mcp/enabled` atau aplikasi di-restart).
+
+## Download APK (build GitHub Actions)
+
+Tiap build sukses membuat **GitHub Release per-build** berisi APK editor arm64 — klik link di halaman release = download APK langsung (bukan zip artifact):
+
+```
+https://github.com/hazn75206-sketch/godot-4.8/releases
+```

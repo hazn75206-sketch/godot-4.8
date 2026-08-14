@@ -20,6 +20,13 @@ extern "C" JNIEXPORT void JNICALL Java_org_godotengine_godot_mcp_McpServerServic
 	}
 }
 
+// Called from Java (McpServerService) to get the current MCP URL to copy.
+extern "C" JNIEXPORT jstring JNICALL Java_org_godotengine_godot_mcp_McpServerService_getServerUrl(JNIEnv *env, jclass clazz) {
+	McpServer *s = McpServer::get_singleton();
+	String url = s ? s->get_mcp_url() : String();
+	return env->NewStringUTF(url.utf8().get_data());
+}
+
 static jobject mcp_get_activity(JNIEnv *env) {
 	OS_Android *os = OS_Android::get_singleton();
 	if (!os || !os->get_godot_java()) {

@@ -2031,6 +2031,7 @@ ProjectManager::ProjectManager() {
 
 	_update_size_limits();
 #ifdef MODULE_GODOT_MCP_ENABLED
+	McpServer::register_editor_settings();
 	McpServer::get_singleton()->start_if_enabled();
 #endif
 }

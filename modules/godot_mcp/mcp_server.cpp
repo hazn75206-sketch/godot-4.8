@@ -7,7 +7,9 @@
 #include "core/os/thread.h"
 #include "core/os/time.h"
 #include "core/string/string_name.h"
+#include "core/io/ip.h"
 #include "core/io/json.h"
+#include "core/object/property_info.h"
 #include "editor/editor_interface.h"
 #include "editor/settings/editor_settings.h"
 #include "mcp_android.h"
@@ -57,7 +59,7 @@ void McpServer::_bind_methods() {
 bool McpServer::get_enabled() const {
 	EditorSettings *es = EditorSettings::get_singleton();
 	if (!es) {
-		return true;
+		return false;
 	}
 		if (!es->has_setting("mcp/enabled")) {
 		return false;
@@ -81,10 +83,54 @@ String McpServer::get_bind() const {
 	if (!es) {
 		return "0.0.0.0";
 	}
-		if (!es->has_setting("mcp/bind")) {
+	if (!es->has_setting("mcp/bind_mode")) {
 		return "0.0.0.0";
 	}
-	return es->get_setting("mcp/bind");
+	return int(es->get_setting("mcp/bind_mode")) == 1 ? "127.0.0.1" : "0.0.0.0";
+}
+
+int McpServer::get_bind_mode() const {
+	EditorSettings *es = EditorSettings::get_singleton();
+	if (!es) {
+		return 0;
+	}
+	if (!es->has_setting("mcp/bind_mode")) {
+		return 0;
+	}
+	return int(es->get_setting("mcp/bind_mode"));
+}
+
+int McpServer::get_transport() const {
+	EditorSettings *es = EditorSettings::get_singleton();
+	if (!es) {
+		return 0;
+	}
+	if (!es->has_setting("mcp/transport")) {
+		return 0;
+	}
+	return int(es->get_setting("mcp/transport"));
+}
+
+String McpServer::get_local_ip() const {
+	List<IPAddress> addrs;
+	IP::get_singleton()->get_local_addresses(&addrs);
+	String fallback;
+	for (const IPAddress &a : addrs) {
+		String s = String(a);
+		if (s.begins_with("127.") || s.begins_with("::") || s == "0.0.0.0" || s.contains(":")) {
+			continue;
+		}
+		if (s.begins_with("192.168.") || s.begins_with("10.") || s.begins_with("172.")) {
+			return s;
+		}
+		if (fallback.is_empty()) {
+			fallback = s;
+		}
+	}
+	if (!fallback.is_empty()) {
+		return fallback;
+	}
+	return "127.0.0.1";
 }
 
 String McpServer::get_token() const {
@@ -113,7 +159,12 @@ void McpServer::set_enabled(bool p_enabled) {
 }
 
 String McpServer::get_mcp_url() const {
-	return "http://" + (running ? get_bind() : String("??")) + ":" + itos(get_port()) + "/mcp";
+	String host = get_bind();
+	if (host == "0.0.0.0") {
+		host = get_local_ip();
+	}
+	String path = get_transport() == 2 ? "/sse" : "/mcp";
+	return "http://" + host + ":" + itos(get_port()) + path;
 }
 
 void McpServer::apply_config() {
@@ -144,6 +195,10 @@ void McpServer::start_server() {
 		return;
 	}
 	_update_from_settings();
+	cfg_port = get_port();
+	cfg_bind_mode = get_bind_mode();
+	cfg_transport = get_transport();
+	cfg_token = get_token();
 #ifdef TOOLS_ENABLED
 	_register_builtin_tools();
 #endif
@@ -190,17 +245,47 @@ void McpServer::stop_server() {
 	print_verbose("Godot MCP: server stopped");
 }
 
+void McpServer::register_editor_settings() {
+	EditorSettings *es = EditorSettings::get_singleton();
+	if (!es) {
+		return;
+	}
+	if (!es->has_setting("mcp/enabled")) {
+		es->set_setting("mcp/enabled", false);
+	}
+	if (!es->has_setting("mcp/port")) {
+		es->set_setting("mcp/port", 8766);
+	}
+	if (!es->has_setting("mcp/transport")) {
+		es->set_setting("mcp/transport", 0);
+	}
+	if (!es->has_setting("mcp/bind_mode")) {
+		es->set_setting("mcp/bind_mode", 0);
+	}
+	if (!es->has_setting("mcp/token")) {
+		es->set_setting("mcp/token", String());
+	}
+	es->add_property_hint(PropertyInfo(Variant::BOOL, "mcp/enabled", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT, "Run the MCP server while the editor is open"));
+	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/transport", PROPERTY_HINT_ENUM, "Both (Streamable HTTP + SSE),Streamable HTTP only,SSE only"));
+	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/bind_mode", PROPERTY_HINT_ENUM, "LAN (accessible from other devices),Localhost only"));
+	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/port", PROPERTY_HINT_RANGE, "1,65535,1"));
+	es->add_property_hint(PropertyInfo(Variant::STRING, "mcp/token", PROPERTY_HINT_PASSWORD, ""));
+}
+
 void McpServer::_update_from_settings() {
 	EditorSettings *es = EditorSettings::get_singleton();
 	if (es) {
 		if (!es->has_setting("mcp/enabled")) {
-			es->set_setting("mcp/enabled", true);
+			es->set_setting("mcp/enabled", false);
 		}
 		if (!es->has_setting("mcp/port")) {
 			es->set_setting("mcp/port", 8766);
 		}
-		if (!es->has_setting("mcp/bind")) {
-			es->set_setting("mcp/bind", "0.0.0.0");
+		if (!es->has_setting("mcp/transport")) {
+			es->set_setting("mcp/transport", 0);
+		}
+		if (!es->has_setting("mcp/bind_mode")) {
+			es->set_setting("mcp/bind_mode", 0);
 		}
 		if (!es->has_setting("mcp/token")) {
 			es->set_setting("mcp/token", String());
@@ -423,6 +508,16 @@ void McpServer::_tick() {
 		return;
 	}
 	last_tick = now;
+	if (running) {
+		int p = get_port();
+		int b = get_bind_mode();
+		int t = get_transport();
+		String tok = get_token();
+		if (p != cfg_port || b != cfg_bind_mode || t != cfg_transport || tok != cfg_token) {
+			apply_config();
+			return;
+		}
+	}
 	_emit_events();
 }
 

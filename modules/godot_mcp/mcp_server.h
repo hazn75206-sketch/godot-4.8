@@ -43,6 +43,7 @@ public:
 
 	static McpServer *get_singleton();
 	static void cleanup();
+	static void register_editor_settings();
 
 	void start_if_enabled();
 	void start_server();
@@ -53,6 +54,9 @@ public:
 	String get_bind() const;
 	String get_token() const;
 	bool get_enabled() const;
+	int get_transport() const;
+	int get_bind_mode() const;
+	String get_local_ip() const;
 	void apply_config();
 	void set_enabled(bool p_enabled);
 	String get_mcp_url() const;
@@ -106,6 +110,11 @@ private:
 
 	Object *root_node = nullptr;
 	uint64_t last_scene_id = 0;
+
+	int cfg_port = 8766;
+	int cfg_bind_mode = 0;
+	int cfg_transport = 0;
+	String cfg_token;
 };
 
 #endif // GODOT_MCP_SERVER_H

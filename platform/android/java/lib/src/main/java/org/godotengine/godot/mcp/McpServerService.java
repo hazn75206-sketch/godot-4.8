@@ -11,6 +11,8 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.util.Log;
@@ -32,11 +34,13 @@ public class McpServerService extends android.app.Service {
     private static final int NOTIF_ID = 8766;
 
     public static final String ACTION_STOP_MCP = "org.godotengine.godot.mcp.STOP";
+    public static final String ACTION_COPY_URL_MCP = "org.godotengine.godot.mcp.COPY_URL";
 
     private static McpServerService instance = null;
 
     // Native side: implemented in modules/godot_mcp/mcp_android.cpp
     static native void notifyMcpStop();
+    static native String getServerUrl();
 
     public static void start(Context context, int port) {
         requestNotificationPermission(context);
@@ -151,7 +155,16 @@ public class McpServerService extends android.app.Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         int iconRes = getIconRes();
-        String url = "http://127.0.0.1:" + port + "/mcp (LAN: port " + port + ")";
+        String url = getServerUrl();
+        if (url == null || url.isEmpty()) {
+            url = "http://127.0.0.1:" + port + "/mcp";
+        }
+
+        Intent copyIntent = new Intent(this, CopyUrlReceiver.class);
+        copyIntent.setAction(ACTION_COPY_URL_MCP);
+        PendingIntent copyPi = PendingIntent.getBroadcast(
+                this, 2, copyIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(iconRes)
@@ -159,6 +172,7 @@ public class McpServerService extends android.app.Service {
                 .setContentText(url)
                 .setOnlyAlertOnce(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
+                .addAction(new NotificationCompat.Action(iconRes, "Salin URL MCP", copyPi))
                 .addAction(new NotificationCompat.Action(iconRes, "Matikan server", stopPi));
 
         return builder.build();
@@ -170,6 +184,27 @@ public class McpServerService extends android.app.Service {
             return id != 0 ? id : android.R.drawable.ic_menu_compass;
         } catch (Exception e) {
             return android.R.drawable.ic_menu_compass;
+        }
+    }
+
+    /** Receives the "Salin URL MCP" notification action and copies the URL to the clipboard. */
+    public static class CopyUrlReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (ACTION_COPY_URL_MCP.equals(intent.getAction())) {
+                String url = null;
+                try {
+                    url = McpServerService.getServerUrl();
+                } catch (UnsatisfiedLinkError e) {
+                    Log.w(TAG, "native getServerUrl not available: " + e.getMessage());
+                }
+                if (url == null || url.isEmpty()) {
+                    url = "http://127.0.0.1:8766/mcp";
+                }
+                ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(ClipData.newPlainText("MCP URL", url));
+                Log.i(TAG, "MCP URL copied to clipboard: " + url);
+            }
         }
     }
 
