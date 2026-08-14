@@ -519,8 +519,7 @@ public:
 	bool supports_builtin_mode() const override;
 	String make_function(const String &p_class, const String &p_name, const PackedStringArray &p_args) const override;
 	virtual bool can_make_function() const override { return false; }
-	virtual String _get_indentation() const;
-	/* TODO? */ void auto_indent_code(String &p_code, int p_from_line, int p_to_line) const override {}
+	String _get_indentation() const;
 	/* TODO */ void add_global_constant(const StringName &p_variable, const Variant &p_value) override {}
 	virtual ScriptNameCasing preferred_file_name_casing() const override;
 
@@ -562,9 +561,6 @@ public:
 	void reload_all_scripts() override;
 	void reload_scripts(const Array &p_scripts) override;
 	void reload_tool_script(const Ref<Script> &p_script) override;
-
-	/* LOADER FUNCTIONS */
-	void get_recognized_extensions(List<String> *p_extensions) const override;
 
 #ifdef TOOLS_ENABLED
 	Error open_in_external_editor(const Ref<Script> &p_script, int p_line, int p_col) override;
