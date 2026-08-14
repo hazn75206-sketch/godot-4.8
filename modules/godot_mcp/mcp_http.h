@@ -3,6 +3,7 @@
 
 #include "core/io/tcp_server.h"
 #include "core/io/stream_peer_tcp.h"
+#include "core/string/ustring.h"
 
 #include <atomic>
 #include <memory>
@@ -11,6 +12,9 @@
 #include <vector>
 
 class McpServer;
+
+// Push an SSE frame to a connection owned by MCPHttpServer (from any thread).
+void mcp_http_send_frame(void *p_conn, const String &p_frame);
 
 class MCPHttpServer {
 public:

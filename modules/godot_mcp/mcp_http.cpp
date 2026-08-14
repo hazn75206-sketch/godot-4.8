@@ -291,7 +291,7 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 			std::lock_guard<std::mutex> lk(owner->sessions_mu);
 			auto it = owner->sessions.find(sid);
 			if (it != owner->sessions.end()) {
-				it->second.sse_conn = p_conn;
+				it->second.sse_conn = (void *)p_conn;
 			}
 		}
 		String resp = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nConnection: keep-alive\r\n\r\n";
@@ -356,7 +356,7 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 			std::lock_guard<std::mutex> lk(owner->sessions_mu);
 			auto it = owner->sessions.find(created.is_empty() ? sid : created);
 			if (it != owner->sessions.end()) {
-				it->second.sse_conn = p_conn;
+				it->second.sse_conn = (void *)p_conn;
 			}
 		}
 		return;
@@ -390,6 +390,15 @@ void MCPHttpServer::_write_sse(Connection *p_conn, const String &p_frame) {
 	CharString cs = p_frame.utf8();
 	p_conn->peer->put_data((const uint8_t *)cs.get_data(), cs.length());
 	p_conn->last_activity = Time::get_singleton()->get_ticks_msec();
+}
+
+void mcp_http_send_frame(void *p_conn, const String &p_frame) {
+	MCPHttpServer::Connection *c = static_cast<MCPHttpServer::Connection *>(p_conn);
+	if (!c || !c->peer.is_valid()) {
+		return;
+	}
+	std::lock_guard<std::mutex> lk(c->mu);
+	c->out_queue.push_back(p_frame);
 }
 
 void MCPHttpServer::_close_conn(Connection *p_conn) {

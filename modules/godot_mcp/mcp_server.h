@@ -1,8 +1,6 @@
 #ifndef GODOT_MCP_SERVER_H
 #define GODOT_MCP_SERVER_H
 
-#include "core/io/tcp_server.h"
-#include "core/io/stream_peer_tcp.h"
 #include "core/object/object.h"
 #include "core/string/ustring.h"
 
@@ -34,18 +32,10 @@ class McpServer : public Object {
 #endif
 
 public:
-	struct ClientConn {
-		Ref<StreamPeerTCP> peer;
-		bool open = false;
-		std::vector<String> out_queue;
-		uint64_t last_activity = 0;
-		std::mutex mu;
-	};
-
 	struct Session {
 		String id;
 		String protocol_version;
-		ClientConn *sse_conn = nullptr;
+		void *sse_conn = nullptr;
 	};
 
 	McpServer();

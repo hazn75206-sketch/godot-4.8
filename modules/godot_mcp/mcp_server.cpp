@@ -9,7 +9,7 @@
 #include "core/string/string_name.h"
 #include "core/io/json.h"
 #include "editor/editor_interface.h"
-#include "editor/editor_settings.h"
+#include "editor/settings/editor_settings.h"
 #include "mcp_android.h"
 #include "mcp_http.h"
 #include "mcp_tools.h"
@@ -336,12 +336,10 @@ Variant McpServer::_execute_tool(const String &p_name, const Dictionary &p_argum
 }
 
 void McpServer::_send_sse_to_session(const Session &p_session, const String &p_frame) {
-	if (!p_session.sse_conn || !p_session.sse_conn->open) {
+	if (!p_session.sse_conn) {
 		return;
 	}
-	ClientConn *c = p_session.sse_conn;
-	std::lock_guard<std::mutex> lk(c->mu);
-	c->out_queue.push_back(p_frame);
+	mcp_http_send_frame(p_session.sse_conn, p_frame);
 }
 
 void McpServer::broadcast_notification(const String &p_method, const Dictionary &p_params) {

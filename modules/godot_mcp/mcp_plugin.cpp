@@ -3,7 +3,7 @@
 #include "core/config/engine.h"
 #include "core/math/color.h"
 #include "core/os/time.h"
-#include "editor/editor_settings.h"
+#include "editor/settings/editor_settings.h"
 #include "mcp_server.h"
 #include "scene/gui/box_container.h"
 #include "scene/gui/button.h"
