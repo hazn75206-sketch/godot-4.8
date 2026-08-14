@@ -23,7 +23,7 @@ McpEditorPlugin::McpEditorPlugin() {
 McpEditorPlugin::~McpEditorPlugin() {
 }
 
-static void McpEditorPlugin::_bind_methods() {
+void McpEditorPlugin::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_toggle", "enabled"), &McpEditorPlugin::_on_toggle);
 	ClassDB::bind_method(D_METHOD("_on_apply"), &McpEditorPlugin::_on_apply);
 	ClassDB::bind_method(D_METHOD("_refresh_status"), &McpEditorPlugin::_refresh_status);

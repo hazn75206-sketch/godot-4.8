@@ -59,7 +59,10 @@ bool McpServer::get_enabled() const {
 	if (!es) {
 		return true;
 	}
-	return es->has_setting("mcp/enabled") ? bool(es->get_setting("mcp/enabled")) : true;
+		if (!es->has_setting("mcp/enabled")) {
+		return true;
+	}
+	return bool(es->get_setting("mcp/enabled"));
 }
 
 int McpServer::get_port() const {
@@ -67,7 +70,10 @@ int McpServer::get_port() const {
 	if (!es) {
 		return 8766;
 	}
-	return es->has_setting("mcp/port") ? int(es->get_setting("mcp/port")) : 8766;
+		if (!es->has_setting("mcp/port")) {
+		return 8766;
+	}
+	return int(es->get_setting("mcp/port"));
 }
 
 String McpServer::get_bind() const {
@@ -75,7 +81,10 @@ String McpServer::get_bind() const {
 	if (!es) {
 		return "0.0.0.0";
 	}
-	return es->has_setting("mcp/bind") ? es->get_setting("mcp/bind") : "0.0.0.0";
+		if (!es->has_setting("mcp/bind")) {
+		return "0.0.0.0";
+	}
+	return es->get_setting("mcp/bind");
 }
 
 String McpServer::get_token() const {
@@ -83,7 +92,10 @@ String McpServer::get_token() const {
 	if (!es) {
 		return String();
 	}
-	return es->has_setting("mcp/token") ? es->get_setting("mcp/token") : String();
+		if (!es->has_setting("mcp/token")) {
+		return String();
+	}
+	return es->get_setting("mcp/token");
 }
 
 void McpServer::set_enabled(bool p_enabled) {
