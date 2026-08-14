@@ -15,7 +15,6 @@
 #include "scene/gui/panel_container.h"
 #include "scene/gui/separator.h"
 #include "scene/gui/spin_box.h"
-#include "scene/gui/v_box_container.h"
 #include "servers/text_server.h"
 
 McpEditorPlugin::McpEditorPlugin() {
@@ -24,14 +23,16 @@ McpEditorPlugin::McpEditorPlugin() {
 McpEditorPlugin::~McpEditorPlugin() {
 }
 
-void McpEditorPlugin::_bind_methods() {
+static void McpEditorPlugin::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_toggle", "enabled"), &McpEditorPlugin::_on_toggle);
 	ClassDB::bind_method(D_METHOD("_on_apply"), &McpEditorPlugin::_on_apply);
 	ClassDB::bind_method(D_METHOD("_refresh_status"), &McpEditorPlugin::_refresh_status);
 }
 
-void McpEditorPlugin::_enter_tree() {
-	panel = memnew(VBoxContainer);
+void McpEditorPlugin::_notification(int p_what) {
+	switch (p_what) {
+		case NOTIFICATION_ENTER_TREE: {
+			panel = memnew(VBoxContainer);
 	panel->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	panel->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 	panel->add_theme_constant_override("separation", 6);
@@ -110,20 +111,24 @@ void McpEditorPlugin::_enter_tree() {
 	token_edit->set_text(s->get_token());
 	s->start_if_enabled();
 	_refresh_status();
-}
+			set_process(true);
+		} break;
 
-void McpEditorPlugin::_exit_tree() {
-	if (panel) {
-		remove_control_from_docks(panel);
-		panel->queue_free();
-		panel = nullptr;
-	}
-}
+		case NOTIFICATION_EXIT_TREE: {
+			set_process(false);
+			if (panel) {
+				remove_control_from_docks(panel);
+				panel->queue_free();
+				panel = nullptr;
+			}
+		} break;
 
-void McpEditorPlugin::_process(double p_delta) {
-	if (Time::get_singleton()->get_ticks_msec() - last_refresh > 500) {
-		last_refresh = Time::get_singleton()->get_ticks_msec();
-		_refresh_status();
+		case NOTIFICATION_PROCESS: {
+			if (Time::get_singleton()->get_ticks_msec() - last_refresh > 500) {
+				last_refresh = Time::get_singleton()->get_ticks_msec();
+				_refresh_status();
+			}
+		} break;
 	}
 }
 

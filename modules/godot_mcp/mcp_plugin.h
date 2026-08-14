@@ -18,10 +18,8 @@ public:
 	~McpEditorPlugin();
 
 protected:
-	void _bind_methods();
-	void _enter_tree() override;
-	void _exit_tree() override;
-	void _process(double p_delta) override;
+	static void _bind_methods();
+	void _notification(int p_what);
 
 private:
 	void _on_toggle(bool p_enabled);

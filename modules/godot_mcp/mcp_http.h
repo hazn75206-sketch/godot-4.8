@@ -21,12 +21,13 @@ public:
 	MCPHttpServer(McpServer *p_owner);
 	~MCPHttpServer();
 
+	struct Connection;
+
 	bool start();
 	void stop();
 	int get_port() const { return port; }
 
 private:
-	struct Connection;
 
 	void _accept_loop();
 	void _connection_loop(Connection *p_conn);
