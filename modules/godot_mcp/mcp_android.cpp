@@ -16,7 +16,7 @@ static bool mcp_jni_ready = false;
 extern "C" JNIEXPORT void JNICALL Java_org_godotengine_godot_mcp_McpServerService_notifyMcpStop(JNIEnv *env, jclass clazz) {
 	McpServer *s = McpServer::get_singleton();
 	if (s) {
-		s->stop_server();
+		s->set_enabled(false);
 	}
 }
 

@@ -84,6 +84,7 @@ private:
 
 	std::unique_ptr<MCPHttpServer> http;
 	bool running = false;
+	bool tick_connected = false;
 	uint64_t last_tick = 0;
 	bool was_playing = false;
 

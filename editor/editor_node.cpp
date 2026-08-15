@@ -4244,6 +4244,8 @@ void EditorNode::_exit_editor(int p_exit_code) {
 	exiting = true;
 	waiting_for_first_scan = false;
 	resource_preview->stop(); // Stop early to avoid crashes.
+	// Never leave the MCP server enabled across sessions: the user must re-enable it manually.
+	McpServer::get_singleton()->set_enabled(false);
 	_save_editor_layout();
 
 	// Dim the editor window while it's quitting to make it clearer that it's busy.
@@ -8495,7 +8497,6 @@ EditorNode::EditorNode() {
 	}
 #ifdef MODULE_GODOT_MCP_ENABLED
 	McpServer::register_editor_settings();
-	McpServer::get_singleton()->start_if_enabled();
 #endif
 
 	ED_SHORTCUT("editor/lock_selected_nodes", TTRC("Lock Selected Node(s)"), KeyModifierMask::CMD_OR_CTRL | Key::L);

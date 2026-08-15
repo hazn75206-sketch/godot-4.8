@@ -213,8 +213,9 @@ void McpServer::start_server() {
 	last_scene_id = 0;
 	last_tick = 0;
 	SceneTree *st = SceneTree::get_singleton();
-	if (st) {
+	if (st && !tick_connected) {
 		st->connect(SNAME("process_frame"), callable_mp(this, &McpServer::_tick));
+		tick_connected = true;
 	}
 	print_line(vformat("Godot MCP: server running on %s", get_mcp_url()));
 #ifdef ANDROID_ENABLED
@@ -227,10 +228,6 @@ void McpServer::stop_server() {
 		return;
 	}
 	running = false;
-	SceneTree *st = SceneTree::get_singleton();
-	if (st) {
-		st->disconnect(SNAME("process_frame"), callable_mp(this, &McpServer::_tick));
-	}
 	if (http) {
 		http->stop();
 		http.reset();
@@ -270,6 +267,14 @@ void McpServer::register_editor_settings() {
 	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/bind_mode", PROPERTY_HINT_ENUM, "LAN (accessible from other devices),Localhost only"));
 	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/port", PROPERTY_HINT_RANGE, "1,65535,1"));
 	es->add_property_hint(PropertyInfo(Variant::STRING, "mcp/token", PROPERTY_HINT_PASSWORD, ""));
+	// The MCP server never auto-starts on launch. Keep the poll connected so
+	// enabling/disabling the setting takes effect immediately without a restart.
+	McpServer *s = McpServer::get_singleton();
+	SceneTree *st = SceneTree::get_singleton();
+	if (s && st && !s->tick_connected) {
+		st->connect(SNAME("process_frame"), callable_mp(s, &McpServer::_tick));
+		s->tick_connected = true;
+	}
 }
 
 void McpServer::_update_from_settings() {
@@ -497,9 +502,6 @@ void McpServer::_emit_events() {
 }
 
 void McpServer::_tick() {
-	if (!running) {
-		return;
-	}
 	uint64_t now = Time::get_singleton()->get_ticks_msec();
 	if (last_tick == 0) {
 		last_tick = now;
@@ -508,7 +510,15 @@ void McpServer::_tick() {
 		return;
 	}
 	last_tick = now;
-	if (running) {
+	if (!running) {
+		start_if_enabled();
+		return;
+	}
+	if (!get_enabled()) {
+		stop_server();
+		return;
+	}
+	{
 		int p = get_port();
 		int b = get_bind_mode();
 		int t = get_transport();

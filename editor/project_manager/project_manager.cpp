@@ -136,6 +136,8 @@ void ProjectManager::_notification(int p_what) {
 		} break;
 
 		case NOTIFICATION_WM_CLOSE_REQUEST: {
+			// Never leave the MCP server enabled across sessions: the user must re-enable it manually.
+			McpServer::get_singleton()->set_enabled(false);
 			_dim_window();
 		} break;
 
@@ -2032,7 +2034,6 @@ ProjectManager::ProjectManager() {
 	_update_size_limits();
 #ifdef MODULE_GODOT_MCP_ENABLED
 	McpServer::register_editor_settings();
-	McpServer::get_singleton()->start_if_enabled();
 #endif
 }
 
