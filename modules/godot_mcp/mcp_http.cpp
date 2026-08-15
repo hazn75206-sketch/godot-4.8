@@ -149,6 +149,9 @@ void MCPHttpServer::_connection_loop(Connection *p_conn) {
 }
 
 bool MCPHttpServer::_read_request(Connection *p_conn) {
+	if (p_conn->peer->get_status() != StreamPeerTCP::STATUS_CONNECTED) {
+		return false;
+	}
 	int avail = p_conn->peer->get_available_bytes();
 	if (avail <= 0) {
 		return false;
@@ -272,43 +275,54 @@ bool MCPHttpServer::_check_auth(Connection *p_conn) {
 }
 
 void MCPHttpServer::_handle_http(Connection *p_conn) {
-	if (p_conn->method == "GET" && p_conn->path == "/sse") {
-		if (owner->get_transport() == 1) {
-			_send_response(p_conn, 404, "application/json", "{\"error\":\"SSE transport disabled\"}", "");
-			return;
-		}
-		if (!_check_auth(p_conn)) {
-			_send_response(p_conn, 401, "application/json", "{\"error\":\"unauthorized\"}", "");
-			return;
-		}
-		p_conn->is_sse = true;
-		String sid = p_conn->headers.get("mcp-session-id", String());
-		if (sid.is_empty()) {
-			Vector<String> params = p_conn->query.split("&");
-			for (const String &p : params) {
-				if (p.begins_with("sessionId=")) {
-					sid = p.substr(String("sessionId=").length());
-					break;
+	if (p_conn->method == "GET") {
+		// Streamable HTTP: clients open the SSE receive-stream with GET on the
+		// MCP endpoint itself (path /mcp). GET /sse is kept as a legacy alias.
+		if (p_conn->path == "/mcp" || p_conn->path == "/sse") {
+			if (owner->get_transport() == 1) {
+				// 405 signals "no SSE stream at GET endpoint" and clients handle it gracefully.
+				_send_response(p_conn, 405, "application/json", "{\"error\":\"SSE stream disabled\"}", "");
+				return;
+			}
+			if (!_check_auth(p_conn)) {
+				_send_response(p_conn, 401, "application/json", "{\"error\":\"unauthorized\"}", "");
+				return;
+			}
+			p_conn->is_sse = true;
+			String sid = p_conn->headers.get("mcp-session-id", String());
+			if (sid.is_empty()) {
+				Vector<String> params = p_conn->query.split("&");
+				for (const String &p : params) {
+					if (p.begins_with("sessionId=")) {
+						sid = p.substr(String("sessionId=").length());
+						break;
+					}
 				}
 			}
-		}
-		{
-			std::lock_guard<std::mutex> lk(owner->sessions_mu);
-			auto it = owner->sessions.find(sid);
-			if (it != owner->sessions.end()) {
-				it->second.sse_conn = (void *)p_conn;
+			{
+				std::lock_guard<std::mutex> lk(owner->sessions_mu);
+				auto it = owner->sessions.find(sid);
+				if (it != owner->sessions.end()) {
+					it->second.sse_conn = (void *)p_conn;
+				}
 			}
+			String proto_hdr;
+			if (!owner->protocol_version.is_empty()) {
+				proto_hdr = "MCP-Protocol-Version: " + owner->protocol_version + "\r\n";
+			}
+			String resp = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nConnection: keep-alive\r\n" + proto_hdr + "\r\n";
+			CharString cs = resp.utf8();
+			p_conn->peer->put_data((const uint8_t *)cs.get_data(), cs.length());
+			p_conn->last_activity = Time::get_singleton()->get_ticks_msec();
+			return;
 		}
-		String resp = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nConnection: keep-alive\r\n\r\n";
-		CharString cs = resp.utf8();
-		p_conn->peer->put_data((const uint8_t *)cs.get_data(), cs.length());
-		p_conn->last_activity = Time::get_singleton()->get_ticks_msec();
-		return;
-	}
 
-	if (p_conn->method == "GET") {
-		String body = "Godot MCP server is running on port " + itos(port) + ".\nEndpoints:\n  POST /mcp (streamable HTTP)\n  GET /sse + POST /messages (SSE)\n";
-		_send_response(p_conn, 200, "text/plain", body, "");
+		if (p_conn->path == "/") {
+			String body = "Godot MCP server is running on port " + itos(port) + ".\nEndpoints:\n  POST /mcp (streamable HTTP)\n  GET /mcp (SSE stream)\n  GET /sse (SSE)\n";
+			_send_response(p_conn, 200, "text/plain", body, "");
+			return;
+		}
+		_send_response(p_conn, 404, "application/json", "{\"error\":\"not found\"}", "");
 		return;
 	}
 
@@ -353,6 +367,9 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 	String extra = String();
 	if (!created.is_empty()) {
 		extra = "Mcp-Session-Id: " + created + "\r\n";
+	}
+	if (!owner->protocol_version.is_empty()) {
+		extra += "MCP-Protocol-Version: " + owner->protocol_version + "\r\n";
 	}
 	if (accept.contains("text/event-stream")) {
 		String resp_head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\n" + extra + "\r\n";
@@ -411,6 +428,16 @@ void mcp_http_send_frame(void *p_conn, const String &p_frame) {
 }
 
 void MCPHttpServer::_close_conn(Connection *p_conn) {
+	// Drop any session references to this connection before freeing it, so the
+	// main thread never broadcasts to a freed connection (use-after-free).
+	{
+		std::lock_guard<std::mutex> lk(owner->sessions_mu);
+		for (auto &pair : owner->sessions) {
+			if (pair.second.sse_conn == (void *)p_conn) {
+				pair.second.sse_conn = nullptr;
+			}
+		}
+	}
 	if (p_conn->peer.is_valid()) {
 		p_conn->peer->disconnect_from_host();
 	}
