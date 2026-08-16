@@ -71,6 +71,16 @@ Variant mcp_tool_ret_json(const Variant &p_value) {
 	return Dictionary{ { "content", Array{ Dictionary{ { "type", "text" }, { "text", JSON::stringify(p_value) } } } }, { "isError", false } };
 }
 
+// Ask the editor to rescan/reload right after MCP changed files on disk, so
+// new/modified scenes, scripts and assets show up immediately (no game run
+// or app focus event needed, which never happen on the Android editor).
+static void _mcp_refresh_editor() {
+	EditorNode *en = EditorNode::get_singleton();
+	if (en) {
+		en->refresh_external_changes();
+	}
+}
+
 // ----------------------------------------------------------------- Error hook
 // Installed by mcp_register_tools() (TOOLS builds only).
 
@@ -1118,16 +1128,6 @@ static Variant _tool_refresh(const Dictionary &p_args) {
 	}
 	en->refresh_external_changes();
 	return Dictionary{ { "ok", true }, { "message", "Proyek disegarkan: pemindaian filesystem dijadwalkan; scene dan pengaturan proyek dimuat ulang dari disk." } };
-}
-
-// Ask the editor to rescan/reload right after MCP changed files on disk, so
-// new/modified scenes, scripts and assets show up immediately (no game run
-// or app focus event needed, which never happen on the Android editor).
-static void _mcp_refresh_editor() {
-	EditorNode *en = EditorNode::get_singleton();
-	if (en) {
-		en->refresh_external_changes();
-	}
 }
 
 static Dictionary _schema(bool p_required, const Vector<String> &p_props) {
