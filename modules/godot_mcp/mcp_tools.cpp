@@ -757,9 +757,7 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 						sb->set_shadow_color(sc);
 					}
 				}
-				if (d.has("shadow_enabled")) {
-					sb->set_shadow_enabled(d["shadow_enabled"]);
-				}
+
 				if (d.has("shadow_offset")) {
 					Variant so = d["shadow_offset"];
 					if (so.get_type() == Variant::DICTIONARY) {
