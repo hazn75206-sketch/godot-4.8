@@ -387,7 +387,6 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 		_send_response(p_conn, 202, "application/json", "{}", "");
 		return;
 	}
-	String accept = p_conn->headers.get("accept", String());
 	String body_json = JSON::stringify(response);
 	String extra = String();
 	if (!created.is_empty()) {
@@ -396,25 +395,23 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 	if (!owner->protocol_version.is_empty()) {
 		extra += "MCP-Protocol-Version: " + owner->protocol_version + "\r\n";
 	}
-	if (accept.contains("text/event-stream")) {
-		String resp_head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\n" + extra + "\r\n";
-		CharString cs = resp_head.utf8();
-		p_conn->peer->put_data((const uint8_t *)cs.get_data(), cs.length());
-		p_conn->streaming = true;
-		_write_sse(p_conn, "event: message\ndata: " + body_json + "\n\n");
-		p_conn->last_activity = Time::get_singleton()->get_ticks_msec();
+	// Always reply to JSON-RPC requests with a plain application/json body
+	// (Content-Length terminated). Responding with inline SSE would leave the
+	// body stream open forever on our keep-alive connection: the MCP Kotlin
+	// SDK reads an SSE body until EOF, so the client hangs waiting and then
+	// cancels the request (seen as "notifications/cancelled" after initialize).
+	// Server-initiated messages still flow through the GET /mcp SSE stream.
+	_send_response(p_conn, 200, "application/json", body_json, extra);
+	if (!created.is_empty() || !sid.is_empty()) {
 		{
 			std::lock_guard<std::mutex> lk(owner->sessions_mu);
 			auto it = owner->sessions.find(created.is_empty() ? sid : created);
 			if (it != owner->sessions.end()) {
-				it->second.sse_conn = (void *)p_conn;
+				it->second.sse_conn = nullptr;
 			}
 		}
-		return;
 	}
-
-	_send_response(p_conn, 200, "application/json", body_json, extra);
-	p_conn->last_activity = Time::get_singleton()->get_ticks_msec();
+	return;
 }
 
 void MCPHttpServer::_send_response(Connection *p_conn, int p_status, const String &p_content_type, const String &p_body, const String &p_extra_headers) {
