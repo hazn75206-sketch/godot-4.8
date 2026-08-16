@@ -324,6 +324,16 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 			p_conn->peer->put_data((const uint8_t *)cs.get_data(), cs.length());
 			p_conn->request_ready = false;
 			p_conn->last_activity = Time::get_singleton()->get_ticks_msec();
+
+			// Send the initial SSE event so Streamable HTTP clients (mcp_dart,
+			// RikkaHub, etc.) know the stream is alive and where to POST.
+			if (sid.is_empty()) {
+				// New connection — tell the client the POST endpoint.
+				_write_sse(p_conn, "event: endpoint\ndata: /mcp\n\n");
+			} else {
+				// Existing session — signal the stream is ready.
+				_write_sse(p_conn, "event: open\n\n");
+			}
 			return;
 		}
 
