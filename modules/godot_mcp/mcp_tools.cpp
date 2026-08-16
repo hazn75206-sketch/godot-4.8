@@ -5,6 +5,7 @@
 #include "editor/editor_node.h"
 #include "core/config/engine.h"
 #include "scene/gui/tree.h"
+#include "scene/gui/style_box.h"
 #include "core/config/project_settings.h"
 #include "core/crypto/crypto_core.h"
 #include "core/error/error_macros.h"
@@ -724,6 +725,10 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 			}
 		}
 	}
+
+	// Capture old value for undo.
+	bool ok = false;
+	Variant old = node->get(concrete, &ok);
 
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
 	ur->create_action(vformat("MCP: menetapkan %s.%s", p_args.get("path", String()), concrete));
