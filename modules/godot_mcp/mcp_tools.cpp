@@ -77,7 +77,7 @@ Variant mcp_tool_ret_json(const Variant &p_value) {
 static ErrorHandlerList s_mcp_err_handler;
 
 static void _mcp_log_err_cb(void *p_ud, const char *p_func, const char *p_file, int p_line, const char *p_error, const char *p_verbose_error, bool p_editor_notify, ErrorHandlerType p_type) {
-	String text = vformat("[%s] %s (%s:%d)", p_type == ERR_HANDLER_WARNING ? "WARNING" : "ERROR", p_error, p_file, p_line);
+	String text = vformat("[%s] %s (%s:%d)", p_type == ERR_HANDLER_WARNING ? "PERINGATAN" : "KESALAHAN", p_error, p_file, p_line);
 	if (p_verbose_error && *p_verbose_error) {
 		text += "\n" + String(p_verbose_error);
 	}
@@ -244,7 +244,7 @@ static void _append_icon(Dictionary &r_ret, const Ref<Image> &p_image) {
 
 static Variant _tool_project_info(const Dictionary &p_args) {
 	if (!_has_project()) {
-		return mcp_tool_ret_error("No project is currently open.");
+		return mcp_tool_ret_error("Tidak ada proyek yang sedang terbuka.");
 	}
 	ProjectSettings *ps = ProjectSettings::get_singleton();
 	Dictionary info;
@@ -257,7 +257,7 @@ static Variant _tool_project_info(const Dictionary &p_args) {
 
 static Variant _tool_list_assets(const Dictionary &p_args) {
 	if (!_has_project()) {
-		return mcp_tool_ret_error("No project is currently open.");
+		return mcp_tool_ret_error("Tidak ada proyek yang sedang terbuka.");
 	}
 	String pattern = p_args.get("pattern", "*");
 	bool recursive = p_args.get("recursive", true);
@@ -269,14 +269,14 @@ static Variant _tool_list_assets(const Dictionary &p_args) {
 static Variant _tool_read_file(const Dictionary &p_args) {
 	String path = p_args.get("path", String());
 	if (path.is_empty()) {
-		return mcp_tool_ret_error("Missing 'path'.");
+		return mcp_tool_ret_error("Argumen 'path' wajib diisi.");
 	}
 	if (!FileAccess::exists(path)) {
-		return mcp_tool_ret_error(vformat("File not found: %s", path));
+		return mcp_tool_ret_error(vformat("File tidak ditemukan: %s", path));
 	}
 	Ref<FileAccess> f = FileAccess::open(path, FileAccess::READ);
 	if (f.is_null()) {
-		return mcp_tool_ret_error(vformat("Cannot open file: %s", path));
+		return mcp_tool_ret_error(vformat("Tidak dapat membuka file: %s", path));
 	}
 	String content = f->get_as_text();
 	if (p_args.get("json", false)) {
@@ -292,7 +292,7 @@ static Variant _tool_write_file(const Dictionary &p_args) {
 	String path = p_args.get("path", String());
 	String content = p_args.get("content", String());
 	if (path.is_empty()) {
-		return mcp_tool_ret_error("Missing 'path'.");
+		return mcp_tool_ret_error("Argumen 'path' wajib diisi.");
 	}
 	// Ensure parent dirs exist.
 	String dir = path.get_base_dir();
@@ -303,24 +303,24 @@ static Variant _tool_write_file(const Dictionary &p_args) {
 	}
 	Ref<FileAccess> f = FileAccess::open(path, FileAccess::WRITE);
 	if (f.is_null()) {
-		return mcp_tool_ret_error(vformat("Cannot write file: %s", path));
+		return mcp_tool_ret_error(vformat("Tidak dapat menulis file: %s", path));
 	}
 	f->store_string(content);
 	f->close();
-	return mcp_tool_ret_text(vformat("Wrote %d bytes to %s", content.utf8().length(), path));
+	return mcp_tool_ret_text(vformat("Berhasil menulis %d byte ke %s", content.utf8().length(), path));
 }
 
 static Variant _tool_get_project_setting(const Dictionary &p_args) {
 	if (!_has_project()) {
-		return mcp_tool_ret_error("No project is currently open.");
+		return mcp_tool_ret_error("Tidak ada proyek yang sedang terbuka.");
 	}
 	String name = p_args.get("name", String());
 	if (name.is_empty()) {
-		return mcp_tool_ret_error("Missing 'name'.");
+		return mcp_tool_ret_error("Argumen 'name' wajib diisi.");
 	}
 	Variant value = ProjectSettings::get_singleton()->get_setting(name);
 	if (value.get_type() == Variant::NIL) {
-		return mcp_tool_ret_error(vformat("Setting not found: %s", name));
+		return mcp_tool_ret_error(vformat("Setting tidak ditemukan: %s", name));
 	}
 	Dictionary out;
 	out["name"] = name;
@@ -330,28 +330,28 @@ static Variant _tool_get_project_setting(const Dictionary &p_args) {
 
 static Variant _tool_set_project_setting(const Dictionary &p_args) {
 	if (!_has_project()) {
-		return mcp_tool_ret_error("No project is currently open.");
+		return mcp_tool_ret_error("Tidak ada proyek yang sedang terbuka.");
 	}
 	String name = p_args.get("name", String());
 	if (name.is_empty()) {
-		return mcp_tool_ret_error("Missing 'name'.");
+		return mcp_tool_ret_error("Argumen 'name' wajib diisi.");
 	}
 	Variant value = p_args.get("value", Variant());
 	ProjectSettings::get_singleton()->set_setting(name, value);
 	if (p_args.get("save", true)) {
 		ProjectSettings::get_singleton()->save();
 	}
-	return mcp_tool_ret_text(vformat("Setting '%s' updated.", name));
+	return mcp_tool_ret_text(vformat("Setting \'%s\' diperbarui.", name));
 }
 
 static Variant _tool_get_scene_tree(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	if (!ei) {
-		return mcp_tool_ret_error("Editor is not available.");
+		return mcp_tool_ret_error("Editor tidak tersedia.");
 	}
 	Node *root = _scene_root();
 	if (!root) {
-		return mcp_tool_ret_error("No scene open.");
+		return mcp_tool_ret_error("Tidak ada scene yang terbuka.");
 	}
 	Dictionary tree;
 	tree["scene_path"] = root->get_scene_file_path().is_empty() ? String("<untitled>") : root->get_scene_file_path();
@@ -364,32 +364,32 @@ static Variant _tool_get_scene_tree(const Dictionary &p_args) {
 static Variant _tool_open_scene(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	if (!ei) {
-		return mcp_tool_ret_error("Editor is not available.");
+		return mcp_tool_ret_error("Editor tidak tersedia.");
 	}
 	String path = p_args.get("path", String());
 	if (path.is_empty() || !path.ends_with(".tscn") || !FileAccess::exists(path)) {
-		return mcp_tool_ret_error(vformat("Scene not found: %s", path));
+		return mcp_tool_ret_error(vformat("Scene tidak ditemukan: %s", path));
 	}
 	ei->open_scene_from_path(path);
-	return mcp_tool_ret_text(vformat("Opened scene %s", path));
+	return mcp_tool_ret_text(vformat("Scene dibuka: %s", path));
 }
 
 static Variant _tool_save_scene(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	if (!ei) {
-		return mcp_tool_ret_error("Editor is not available.");
+		return mcp_tool_ret_error("Editor tidak tersedia.");
 	}
 	String path = p_args.get("path", String());
 	if (!path.is_empty()) {
 		if (path.ends_with(".tscn") || path.ends_with(".scn")) {
 			ei->save_scene_as(path);
 		} else {
-			return mcp_tool_ret_error("Path must end with .tscn or .scn");
+			return mcp_tool_ret_error("Path harus diakhiri .tscn atau .scn");
 		}
 	} else {
 		ei->save_scene();
 	}
-	return mcp_tool_ret_text("Scene saved.");
+	return mcp_tool_ret_text("Scene berhasil disimpan.");
 }
 
 static Variant _tool_create_scene(const Dictionary &p_args) {
@@ -400,12 +400,12 @@ static Variant _tool_create_scene(const Dictionary &p_args) {
 		return mcp_tool_ret_error("Missing 'path' (must end with .tscn).");
 	}
 	if (FileAccess::exists(path)) {
-		return mcp_tool_ret_error(vformat("Scene already exists: %s", path));
+		return mcp_tool_ret_error(vformat("Scene sudah ada: %s", path));
 	}
 	String content = vformat("[gd_scene format=3]\n\n[node name=\"%s\" type=\"%s\"]\n", root_name, root_class);
 	Ref<FileAccess> f = FileAccess::open(path, FileAccess::WRITE);
 	if (f.is_null()) {
-		return mcp_tool_ret_error(vformat("Cannot write scene: %s", path));
+		return mcp_tool_ret_error(vformat("Tidak dapat menulis scene: %s", path));
 	}
 	f->store_string(content);
 	f->close();
@@ -413,97 +413,97 @@ static Variant _tool_create_scene(const Dictionary &p_args) {
 	if (ei) {
 		ei->open_scene_from_path(path);
 	}
-	return mcp_tool_ret_text(vformat("Created scene %s", path));
+	return mcp_tool_ret_text(vformat("Scene dibuat: %s", path));
 }
 
 static Variant _tool_add_node(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	Node *root = _scene_root();
 	if (!ei || !root) {
-		return mcp_tool_ret_error("No scene open.");
+		return mcp_tool_ret_error("Tidak ada scene yang terbuka.");
 	}
 	String class_name = p_args.get("class", "Node");
 	String name = p_args.get("name", String());
 	String parent_path = p_args.get("parent", String());
 	Node *parent = parent_path.is_empty() || parent_path == "." ? root : _resolve_node(parent_path);
 	if (!parent) {
-		return mcp_tool_ret_error(vformat("Parent not found: %s", parent_path));
+		return mcp_tool_ret_error(vformat("Parent tidak ditemukan: %s", parent_path));
 	}
 	if (!ClassDB::class_exists(class_name)) {
-		return mcp_tool_ret_error(vformat("Class not found: %s", class_name));
+		return mcp_tool_ret_error(vformat("Class tidak ditemukan: %s", class_name));
 	}
 	Object *obj = ClassDB::instantiate(class_name);
 	Node *node = Object::cast_to<Node>(obj);
 	if (!node) {
 		memdelete(obj);
-		return mcp_tool_ret_error(vformat("Class is not a Node: %s", class_name));
+		return mcp_tool_ret_error(vformat("Class bukan Node: %s", class_name));
 	}
 	String final_name = name.is_empty() ? class_name : name;
 	node->set_name(final_name);
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
-	ur->create_action(vformat("MCP: add node %s", final_name));
+	ur->create_action(vformat("MCP: menambahkan node %s", final_name));
 	ur->add_do_method(parent, "add_child", node, true);
 	ur->add_do_method(node, "set_owner", root);
 	ur->add_undo_method(node, "set_owner", (Object *)nullptr);
 	ur->add_undo_method(parent, "remove_child", node);
 	ur->commit_action();
-	return mcp_tool_ret_text(vformat("Added %s '%s' under %s", class_name, final_name, parent->get_path()));
+	return mcp_tool_ret_text(vformat("Menambahkan %s \'%s\' di bawah %s", class_name, final_name, parent->get_path()));
 }
 
 static Variant _tool_remove_node(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	Node *root = _scene_root();
 	if (!ei || !root) {
-		return mcp_tool_ret_error("No scene open.");
+		return mcp_tool_ret_error("Tidak ada scene yang terbuka.");
 	}
 	String path = p_args.get("path", String());
 	Node *node = _resolve_node(path);
 	if (!node || node == root) {
-		return mcp_tool_ret_error(vformat("Node not found: %s", path));
+		return mcp_tool_ret_error(vformat("Node tidak ditemukan: %s", path));
 	}
 	Node *parent = node->get_parent();
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
-	ur->create_action(vformat("MCP: remove node %s", node->get_name()));
+	ur->create_action(vformat("MCP: menghapus node %s", node->get_name()));
 	ur->add_do_method(parent, "remove_child", node);
 	ur->add_undo_method(parent, "add_child", node, true);
 	ur->add_undo_method(node, "set_owner", root);
 	ur->commit_action();
-	return mcp_tool_ret_text(vformat("Removed node %s", path));
+	return mcp_tool_ret_text(vformat("Node dihapus: %s", path));
 }
 
 static Variant _tool_rename_node(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	if (!ei) {
-		return mcp_tool_ret_error("Editor is not available.");
+		return mcp_tool_ret_error("Editor tidak tersedia.");
 	}
 	String path = p_args.get("path", String());
 	String new_name = p_args.get("name", String());
 	Node *node = _resolve_node(path);
 	if (!node) {
-		return mcp_tool_ret_error(vformat("Node not found: %s", path));
+		return mcp_tool_ret_error(vformat("Node tidak ditemukan: %s", path));
 	}
 	String old_name = node->get_name();
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
-	ur->create_action(vformat("MCP: rename node %s", old_name));
+	ur->create_action(vformat("MCP: mengganti nama node %s", old_name));
 	ur->add_do_method(node, "set_name", new_name);
 	ur->add_undo_method(node, "set_name", old_name);
 	ur->commit_action();
-	return mcp_tool_ret_text(vformat("Renamed %s -> %s", path, new_name));
+	return mcp_tool_ret_text(vformat("Diganti nama %s -> %s", path, new_name));
 }
 
 static Variant _tool_get_node_property(const Dictionary &p_args) {
 	Node *node = _resolve_node(p_args.get("path", String()));
 	if (!node) {
-		return mcp_tool_ret_error(vformat("Node not found: %s", p_args.get("path", String())));
+		return mcp_tool_ret_error(vformat("Node tidak ditemukan: %s", p_args.get("path", String())));
 	}
 	String prop = p_args.get("property", String());
 	if (prop.is_empty()) {
-		return mcp_tool_ret_error("Missing 'property'.");
+		return mcp_tool_ret_error("Argumen 'property' wajib diisi.");
 	}
 	bool ok = false;
 	Variant v = node->get(prop, &ok);
 	if (!ok) {
-		return mcp_tool_ret_error(vformat("Property not found: %s", prop));
+		return mcp_tool_ret_error(vformat("Property tidak ditemukan: %s", prop));
 	}
 	Dictionary out;
 	out["path"] = p_args.get("path", String());
@@ -516,59 +516,59 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	Node *node = _resolve_node(p_args.get("path", String()));
 	if (!ei || !node) {
-		return mcp_tool_ret_error(vformat("Node not found: %s", p_args.get("path", String())));
+		return mcp_tool_ret_error(vformat("Node tidak ditemukan: %s", p_args.get("path", String())));
 	}
 	String prop = p_args.get("property", String());
 	if (prop.is_empty()) {
-		return mcp_tool_ret_error("Missing 'property'.");
+		return mcp_tool_ret_error("Argumen 'property' wajib diisi.");
 	}
 	Variant value = p_args.get("value", Variant());
 	bool ok = false;
 	Variant old = node->get(prop, &ok);
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
-	ur->create_action(vformat("MCP: set %s.%s", p_args.get("path", String()), prop));
+	ur->create_action(vformat("MCP: menetapkan %s.%s", p_args.get("path", String()), prop));
 	ur->add_do_method(node, "set", prop, value);
 	ur->add_undo_method(node, "set", prop, old);
 	ur->commit_action();
-	return mcp_tool_ret_text(vformat("Set %s.%s", p_args.get("path", String()), prop));
+	return mcp_tool_ret_text(vformat("Menetapkan %s.%s", p_args.get("path", String()), prop));
 }
 
 static Variant _tool_reparent_node(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	Node *root = _scene_root();
 	if (!ei || !root) {
-		return mcp_tool_ret_error("No scene open.");
+		return mcp_tool_ret_error("Tidak ada scene yang terbuka.");
 	}
 	Node *node = _resolve_node(p_args.get("path", String()));
 	Node *new_parent = _resolve_node(p_args.get("new_parent", String()));
 	if (!node || node == root) {
-		return mcp_tool_ret_error(vformat("Node not found: %s", p_args.get("path", String())));
+		return mcp_tool_ret_error(vformat("Node tidak ditemukan: %s", p_args.get("path", String())));
 	}
 	if (!new_parent) {
-		return mcp_tool_ret_error(vformat("Parent not found: %s", p_args.get("new_parent", String())));
+		return mcp_tool_ret_error(vformat("Parent tidak ditemukan: %s", p_args.get("new_parent", String())));
 	}
 	Node *old_parent = node->get_parent();
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
-	ur->create_action(vformat("MCP: reparent %s", node->get_name()));
+	ur->create_action(vformat("MCP: memindahkan %s", node->get_name()));
 	ur->add_do_method(new_parent, "add_child", node, true);
 	ur->add_do_method(node, "set_owner", root);
 	ur->add_undo_method(old_parent, "add_child", node, true);
 	ur->add_undo_method(node, "set_owner", root);
 	ur->commit_action();
-	return mcp_tool_ret_text(vformat("Reparented %s under %s", node->get_name(), new_parent->get_path()));
+	return mcp_tool_ret_text(vformat("Memindahkan %s di bawah %s", node->get_name(), new_parent->get_path()));
 }
 
 static Variant _tool_read_script(const Dictionary &p_args) {
 	String path = p_args.get("path", String());
 	if (path.is_empty()) {
-		return mcp_tool_ret_error("Missing 'path'.");
+		return mcp_tool_ret_error("Argumen 'path' wajib diisi.");
 	}
 	if (!FileAccess::exists(path)) {
-		return mcp_tool_ret_error(vformat("Script not found: %s", path));
+		return mcp_tool_ret_error(vformat("Script tidak ditemukan: %s", path));
 	}
 	Ref<FileAccess> f = FileAccess::open(path, FileAccess::READ);
 	if (f.is_null()) {
-		return mcp_tool_ret_error(vformat("Cannot open script: %s", path));
+		return mcp_tool_ret_error(vformat("Tidak dapat membuka script: %s", path));
 	}
 	return mcp_tool_ret_text(f->get_as_text());
 }
@@ -577,91 +577,91 @@ static Variant _tool_write_script(const Dictionary &p_args) {
 	String path = p_args.get("path", String());
 	String content = p_args.get("content", String());
 	if (path.is_empty() || !path.ends_with(".gd")) {
-		return mcp_tool_ret_error("'path' must end with .gd");
+		return mcp_tool_ret_error("'path' harus diakhiri .gd");
 	}
 	Ref<FileAccess> f = FileAccess::open(path, FileAccess::WRITE);
 	if (f.is_null()) {
-		return mcp_tool_ret_error(vformat("Cannot write script: %s", path));
+		return mcp_tool_ret_error(vformat("Tidak dapat menulis script: %s", path));
 	}
 	f->store_string(content);
 	f->close();
-	return mcp_tool_ret_text(vformat("Wrote script %s (%d bytes)", path, content.utf8().length()));
+	return mcp_tool_ret_text(vformat("Script ditulis: %s (%d byte)", path, content.utf8().length()));
 }
 
 static Variant _tool_attach_script(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	Node *node = _resolve_node(p_args.get("path", String()));
 	if (!ei || !node) {
-		return mcp_tool_ret_error(vformat("Node not found: %s", p_args.get("path", String())));
+		return mcp_tool_ret_error(vformat("Node tidak ditemukan: %s", p_args.get("path", String())));
 	}
 	String script_path = p_args.get("script", String());
 	if (script_path.is_empty()) {
-		return mcp_tool_ret_error("Missing 'script' path.");
+		return mcp_tool_ret_error("Argumen 'script' (path) wajib diisi.");
 	}
 	if (!FileAccess::exists(script_path)) {
 		Ref<FileAccess> f = FileAccess::open(script_path, FileAccess::WRITE);
 		if (f.is_null()) {
-			return mcp_tool_ret_error(vformat("Cannot create script: %s", script_path));
+			return mcp_tool_ret_error(vformat("Tidak dapat membuat script: %s", script_path));
 		}
 		f->store_string("extends Node\n");
 		f->close();
 	}
 	Ref<Script> script = ResourceLoader::load(script_path);
 	if (script.is_null()) {
-		return mcp_tool_ret_error(vformat("Cannot load script: %s", script_path));
+		return mcp_tool_ret_error(vformat("Tidak dapat memuat script: %s", script_path));
 	}
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
-	ur->create_action(vformat("MCP: attach %s to %s", script_path, node->get_path()));
+	ur->create_action(vformat("MCP: melampirkan %s ke %s", script_path, node->get_path()));
 	ur->add_do_method(node, "set_script", script);
 	ur->add_undo_method(node, "set_script", (Object *)nullptr);
 	ur->commit_action();
-	return mcp_tool_ret_text(vformat("Attached script %s to %s", script_path, node->get_path()));
+	return mcp_tool_ret_text(vformat("Script %s dilampirkan ke %s", script_path, node->get_path()));
 }
 
 static Variant _tool_run_main_scene(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	if (!ei) {
-		return mcp_tool_ret_error("Editor is not available.");
+		return mcp_tool_ret_error("Editor tidak tersedia.");
 	}
 	if (ei->is_playing_scene()) {
-		return mcp_tool_ret_error("Game is already running.");
+		return mcp_tool_ret_error("Game sudah berjalan.");
 	}
 	ei->play_main_scene();
-	return mcp_tool_ret_text("Starting main scene.");
+	return mcp_tool_ret_text("Memulai main scene.");
 }
 
 static Variant _tool_run_custom_scene(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	if (!ei) {
-		return mcp_tool_ret_error("Editor is not available.");
+		return mcp_tool_ret_error("Editor tidak tersedia.");
 	}
 	String path = p_args.get("path", String());
 	if (path.is_empty() || !FileAccess::exists(path)) {
-		return mcp_tool_ret_error(vformat("Scene not found: %s", path));
+		return mcp_tool_ret_error(vformat("Scene tidak ditemukan: %s", path));
 	}
 	if (ei->is_playing_scene()) {
-		return mcp_tool_ret_error("Game is already running.");
+		return mcp_tool_ret_error("Game sudah berjalan.");
 	}
 	ei->play_custom_scene(path);
-	return mcp_tool_ret_text(vformat("Starting scene %s", path));
+	return mcp_tool_ret_text(vformat("Memulai scene %s", path));
 }
 
 static Variant _tool_stop_game(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	if (!ei) {
-		return mcp_tool_ret_error("Editor is not available.");
+		return mcp_tool_ret_error("Editor tidak tersedia.");
 	}
 	if (!ei->is_playing_scene()) {
-		return mcp_tool_ret_text("Game is not running.");
+		return mcp_tool_ret_text("Game tidak sedang berjalan.");
 	}
 	ei->stop_playing_scene();
-	return mcp_tool_ret_text("Game stopped.");
+	return mcp_tool_ret_text("Game dihentikan.");
 }
 
 static Variant _tool_game_state(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	if (!ei) {
-		return mcp_tool_ret_error("Editor is not available.");
+		return mcp_tool_ret_error("Editor tidak tersedia.");
 	}
 	Dictionary st;
 	st["playing"] = ei->is_playing_scene();
@@ -711,32 +711,32 @@ static Variant _tool_send_input(const Dictionary &p_args) {
 	Input *in = Input::get_singleton();
 	EditorInterface *ei = EditorInterface::get_singleton();
 	if (!in || !ei) {
-		return mcp_tool_ret_error("Input not available.");
+		return mcp_tool_ret_error("Input tidak tersedia.");
 	}
 	String kind = p_args.get("kind", "action");
 	if (kind == "action") {
 		String action = p_args.get("action", String());
 		if (action.is_empty()) {
-			return mcp_tool_ret_error("Missing 'action'.");
+			return mcp_tool_ret_error("Argumen 'action' wajib diisi.");
 		}
 		if (p_args.get("pressed", true)) {
 			in->action_press(action);
 		} else {
 			in->action_release(action);
 		}
-		return mcp_tool_ret_text(vformat("Action %s %s", action, p_args.get("pressed", true) ? "pressed" : "released"));
+		return mcp_tool_ret_text(vformat("Aksi %s %s", action, p_args.get("pressed", true) ? "ditekan" : "dilepas"));
 	}
 	if (kind == "key") {
 		Key keycode = _key_from_name(p_args.get("key", String()));
 		if (keycode == Key::NONE) {
-			return mcp_tool_ret_error(vformat("Unknown key name: %s", p_args.get("key", String())));
+			return mcp_tool_ret_error(vformat("Nama key tidak dikenal: %s", p_args.get("key", String())));
 		}
 		Ref<InputEventKey> ev = memnew(InputEventKey);
 		ev->set_keycode(keycode);
 		ev->set_physical_keycode(keycode);
 		ev->set_pressed(p_args.get("pressed", true));
 		in->parse_input_event(ev);
-		return mcp_tool_ret_text(vformat("Key %s %s", p_args.get("key", String()), p_args.get("pressed", true) ? "pressed" : "released"));
+		return mcp_tool_ret_text(vformat("Key %s %s", p_args.get("key", String()), p_args.get("pressed", true) ? "ditekan" : "dilepas"));
 	}
 	if (kind == "mouse_button") {
 		Ref<InputEventMouseButton> ev = memnew(InputEventMouseButton);
@@ -750,15 +750,15 @@ static Variant _tool_send_input(const Dictionary &p_args) {
 			}
 		}
 		in->parse_input_event(ev);
-		return mcp_tool_ret_text("Mouse button sent.");
+		return mcp_tool_ret_text("Tombol mouse dikirim.");
 	}
-	return mcp_tool_ret_error(vformat("Unknown input kind: %s", kind));
+	return mcp_tool_ret_error(vformat("Jenis input tidak dikenal: %s", kind));
 }
 
 static Variant _tool_screenshot(const Dictionary &p_args) {
 	EditorInterface *ei = EditorInterface::get_singleton();
 	if (!ei) {
-		return mcp_tool_ret_error("Editor is not available.");
+		return mcp_tool_ret_error("Editor tidak tersedia.");
 	}
 	String source = p_args.get("source", "editor");
 	Ref<Image> img;
@@ -775,7 +775,7 @@ static Variant _tool_screenshot(const Dictionary &p_args) {
 		}
 	}
 	if (img.is_null()) {
-		return mcp_tool_ret_error("Cannot capture screenshot (is the viewport available?).");
+		return mcp_tool_ret_error("Tidak dapat mengambil screenshot (apakah viewport tersedia?).");
 	}
 	Dictionary ret;
 	_append_icon(ret, img);
@@ -789,7 +789,7 @@ static String _tool_op(const Dictionary &p_args, const String &p_default = Strin
 }
 
 static String _unknown_op(const String &p_op, const String &p_valid) {
-	return vformat("Unknown op '%s'. Valid ops: %s", p_op, p_valid);
+	return vformat("Operasi '%s' tidak dikenal. Operasi valid: %s", p_op, p_valid);
 }
 
 static Variant _tool_editor_state(const Dictionary &p_args) {
@@ -887,17 +887,17 @@ static Variant _tool_script_patch(const Dictionary &p_args) {
 	String find = p_args.get("find", String());
 	String replace = p_args.get("replace", String());
 	if (path.is_empty()) {
-		return mcp_tool_ret_error("Missing 'path'.");
+		return mcp_tool_ret_error("Argumen 'path' wajib diisi.");
 	}
 	if (find.is_empty()) {
-		return mcp_tool_ret_error("Missing 'find'.");
+		return mcp_tool_ret_error("Argumen 'find' wajib diisi.");
 	}
 	if (!FileAccess::exists(path)) {
-		return mcp_tool_ret_error(vformat("Script not found: %s", path));
+		return mcp_tool_ret_error(vformat("Script tidak ditemukan: %s", path));
 	}
 	Ref<FileAccess> f = FileAccess::open(path, FileAccess::READ);
 	if (f.is_null()) {
-		return mcp_tool_ret_error(vformat("Cannot open script: %s", path));
+		return mcp_tool_ret_error(vformat("Tidak dapat membuka script: %s", path));
 	}
 	String content = f->get_as_text();
 	f->close();
@@ -917,15 +917,15 @@ static Variant _tool_script_patch(const Dictionary &p_args) {
 		}
 	}
 	if (count == 0) {
-		return mcp_tool_ret_error(vformat("Pattern not found in %s", path));
+		return mcp_tool_ret_error(vformat("Pola tidak ditemukan di %s", path));
 	}
 	Ref<FileAccess> w = FileAccess::open(path, FileAccess::WRITE);
 	if (w.is_null()) {
-		return mcp_tool_ret_error(vformat("Cannot write script: %s", path));
+		return mcp_tool_ret_error(vformat("Tidak dapat menulis script: %s", path));
 	}
 	w->store_string(content);
 	w->close();
-	return mcp_tool_ret_text(vformat("Patched %s (%d replacement%s)", path, count, count == 1 ? "" : "s"));
+	return mcp_tool_ret_text(vformat("Ditambal %s (%d penggantian)", path, count));
 }
 
 static Variant _tool_project_manage(const Dictionary &p_args) {
@@ -996,7 +996,7 @@ static Variant _tool_batch_execute(const Dictionary &p_args) {
 	for (int i = 0; i < ops.size(); i++) {
 		Variant v = ops[i];
 		if (v.get_type() != Variant::DICTIONARY) {
-			results.append(mcp_tool_ret_error(vformat("operations[%d] is not an object", i)));
+			results.append(mcp_tool_ret_error(vformat("operations[%d] bukan sebuah objek", i)));
 			if (stop_on_error) {
 				break;
 			}
@@ -1005,7 +1005,7 @@ static Variant _tool_batch_execute(const Dictionary &p_args) {
 		Dictionary op = v;
 		String tool = op.get("tool", String());
 		if (tool.is_empty()) {
-			results.append(mcp_tool_ret_error(vformat("operations[%d] missing 'tool'", i)));
+			results.append(mcp_tool_ret_error(vformat("operations[%d] tidak memiliki \'tool\'", i)));
 			if (stop_on_error) {
 				break;
 			}
@@ -1154,70 +1154,70 @@ void mcp_register_tools(McpServer *p_server) {
 	}
 
 	// godot-ai compatible core tools.
-	p_server->register_tool("editor_state", "Get editor state: readiness (importing|playing|no_scene|ready), playing, current scene, server url.", _schema_any(Vector<String>()), _tool_editor_state);
-	p_server->register_tool("server_info", "Alias of editor_state.", _schema_any(Vector<String>()), _tool_editor_state);
-	p_server->register_tool("session_activate", "Activate/report the current editor session. Args: none.", _schema_any(Vector<String>()), _tool_session_activate);
-	p_server->register_tool("session_manage", "Session info. Args: op (info|activate).", _schema_any(Vector<String>{ "op" }), _tool_session_manage);
+	p_server->register_tool("editor_state", "Ambil status editor: kesiapan (importing|playing|no_scene|ready), status bermain, scene aktif, dan url server.", _schema_any(Vector<String>()), _tool_editor_state);
+	p_server->register_tool("server_info", "Alias dari editor_state.", _schema_any(Vector<String>()), _tool_editor_state);
+	p_server->register_tool("session_activate", "Aktifkan/laporkan session editor saat ini. Args: tidak ada.", _schema_any(Vector<String>()), _tool_session_activate);
+	p_server->register_tool("session_manage", "Informasi session. Args: op (info|activate).", _schema_any(Vector<String>{ "op" }), _tool_session_manage);
 
 	// Scene tools.
-	p_server->register_tool("scene_get_hierarchy", "Get the current scene tree as JSON (nodes, types, paths, key properties). Args: none.", _schema_any(Vector<String>()), _tool_get_scene_tree);
-	p_server->register_tool("get_scene_tree", "Alias of scene_get_hierarchy.", _schema_any(Vector<String>()), _tool_get_scene_tree);
-	p_server->register_tool("scene_open", "Open a .tscn scene in the editor. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_open_scene);
-	p_server->register_tool("open_scene", "Alias of scene_open.", _schema(true, Vector<String>{ "path" }), _tool_open_scene);
-	p_server->register_tool("scene_save", "Save the current scene. Args: path (optional, save-as).", _schema_any(Vector<String>{ "path" }), _tool_save_scene);
-	p_server->register_tool("save_scene", "Alias of scene_save.", _schema_any(Vector<String>{ "path" }), _tool_save_scene);
-	p_server->register_tool("scene_manage", "Scene operations. Args: op (create), path, root_class, root_name.", _schema(true, Vector<String>{ "op" }), _tool_scene_manage);
-	p_server->register_tool("create_scene", "Alias of scene_manage op=create. Args: path, root_class, root_name.", _schema(true, Vector<String>{ "path" }), _tool_create_scene);
+	p_server->register_tool("scene_get_hierarchy", "Ambil pohon scene saat ini sebagai JSON (nodes, tipe, path, properti utama). Args: tidak ada.", _schema_any(Vector<String>()), _tool_get_scene_tree);
+	p_server->register_tool("get_scene_tree", "Alias dari scene_get_hierarchy.", _schema_any(Vector<String>()), _tool_get_scene_tree);
+	p_server->register_tool("scene_open", "Buka scene .tscn di editor. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_open_scene);
+	p_server->register_tool("open_scene", "Alias dari scene_open.", _schema(true, Vector<String>{ "path" }), _tool_open_scene);
+	p_server->register_tool("scene_save", "Simpan scene saat ini. Args: path (opsional, simpan sebagai).", _schema_any(Vector<String>{ "path" }), _tool_save_scene);
+	p_server->register_tool("save_scene", "Alias dari scene_save.", _schema_any(Vector<String>{ "path" }), _tool_save_scene);
+	p_server->register_tool("scene_manage", "Operasi scene. Args: op (create), path, root_class, root_name.", _schema(true, Vector<String>{ "op" }), _tool_scene_manage);
+	p_server->register_tool("create_scene", "Alias dari scene_manage op=create. Args: path, root_class, root_name.", _schema(true, Vector<String>{ "path" }), _tool_create_scene);
 
 	// Node tools.
-	p_server->register_tool("node_create", "Add a node to the scene. Args: class, name, parent (relative path).", _schema(true, Vector<String>{ "class" }), _tool_add_node);
-	p_server->register_tool("add_node", "Alias of node_create.", _schema(true, Vector<String>{ "class" }), _tool_add_node);
-	p_server->register_tool("node_manage", "Node operations. Args: op (remove|rename|reparent), path, name, new_parent.", _schema(true, Vector<String>{ "op", "path" }), _tool_node_manage);
-	p_server->register_tool("remove_node", "Alias of node_manage op=remove. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_remove_node);
-	p_server->register_tool("rename_node", "Alias of node_manage op=rename. Args: path, name.", _schema(true, Vector<String>{ "path", "name" }), _tool_rename_node);
-	p_server->register_tool("reparent_node", "Alias of node_manage op=reparent. Args: path, new_parent.", _schema(true, Vector<String>{ "path", "new_parent" }), _tool_reparent_node);
-	p_server->register_tool("node_get_properties", "Read a node property. Args: path, property.", _schema(true, Vector<String>{ "path", "property" }), _tool_get_node_property);
-	p_server->register_tool("get_node_property", "Alias of node_get_properties.", _schema(true, Vector<String>{ "path", "property" }), _tool_get_node_property);
-	p_server->register_tool("node_set_property", "Set a node property (undoable). Args: path, property, value.", _schema(true, Vector<String>{ "path", "property" }), _tool_set_node_property);
-	p_server->register_tool("set_node_property", "Alias of node_set_property.", _schema(true, Vector<String>{ "path", "property" }), _tool_set_node_property);
+	p_server->register_tool("node_create", "Tambahkan node ke scene. Args: class, name, parent (path relatif).", _schema(true, Vector<String>{ "class" }), _tool_add_node);
+	p_server->register_tool("add_node", "Alias dari node_create.", _schema(true, Vector<String>{ "class" }), _tool_add_node);
+	p_server->register_tool("node_manage", "Operasi node. Args: op (remove|rename|reparent), path, name, new_parent.", _schema(true, Vector<String>{ "op", "path" }), _tool_node_manage);
+	p_server->register_tool("remove_node", "Alias dari node_manage op=remove. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_remove_node);
+	p_server->register_tool("rename_node", "Alias dari node_manage op=rename. Args: path, name.", _schema(true, Vector<String>{ "path", "name" }), _tool_rename_node);
+	p_server->register_tool("reparent_node", "Alias dari node_manage op=reparent. Args: path, new_parent.", _schema(true, Vector<String>{ "path", "new_parent" }), _tool_reparent_node);
+	p_server->register_tool("node_get_properties", "Baca properti node. Args: path, property.", _schema(true, Vector<String>{ "path", "property" }), _tool_get_node_property);
+	p_server->register_tool("get_node_property", "Alias dari node_get_properties.", _schema(true, Vector<String>{ "path", "property" }), _tool_get_node_property);
+	p_server->register_tool("node_set_property", "Atur properti node (dapat dibatalkan). Args: path, property, value.", _schema(true, Vector<String>{ "path", "property" }), _tool_set_node_property);
+	p_server->register_tool("set_node_property", "Alias dari node_set_property.", _schema(true, Vector<String>{ "path", "property" }), _tool_set_node_property);
 
 	// Script tools.
-	p_server->register_tool("script_create", "Write a GDScript file. Args: path, content.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_script);
-	p_server->register_tool("write_script", "Alias of script_create.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_script);
-	p_server->register_tool("script_attach", "Attach a script to a node (creates it if missing). Args: path (node), script (path).", _schema(true, Vector<String>{ "path", "script" }), _tool_attach_script);
-	p_server->register_tool("attach_script", "Alias of script_attach.", _schema(true, Vector<String>{ "path", "script" }), _tool_attach_script);
-	p_server->register_tool("script_patch", "Apply a find/replace patch to a script. Args: path, find, replace, all (bool, replace every occurrence).", _schema(true, Vector<String>{ "path", "find", "replace" }), _tool_script_patch);
-	p_server->register_tool("script_manage", "Script operations. Args: op (read), path.", _schema(true, Vector<String>{ "op", "path" }), _tool_read_script);
-	p_server->register_tool("read_script", "Alias of script_manage op=read. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_read_script);
+	p_server->register_tool("script_create", "Tulis file GDScript. Args: path, content.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_script);
+	p_server->register_tool("write_script", "Alias dari script_create.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_script);
+	p_server->register_tool("script_attach", "Lampirkan script ke node (dibuat otomatis jika belum ada). Args: path (node), script (path).", _schema(true, Vector<String>{ "path", "script" }), _tool_attach_script);
+	p_server->register_tool("attach_script", "Alias dari script_attach.", _schema(true, Vector<String>{ "path", "script" }), _tool_attach_script);
+	p_server->register_tool("script_patch", "Terapkan patch find/replace pada script. Args: path, find, replace, all (bool, ganti semua kemunculan).", _schema(true, Vector<String>{ "path", "find", "replace" }), _tool_script_patch);
+	p_server->register_tool("script_manage", "Operasi script. Args: op (read), path.", _schema(true, Vector<String>{ "op", "path" }), _tool_read_script);
+	p_server->register_tool("read_script", "Alias dari script_manage op=read. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_read_script);
 
 	// Filesystem tools.
-	p_server->register_tool("filesystem_manage", "Filesystem operations. Args: op (read|write|list), path, content, pattern, recursive.", _schema(true, Vector<String>{ "op" }), _tool_filesystem_manage);
-	p_server->register_tool("read_file", "Alias of filesystem_manage op=read. Args: path, json.", _schema(true, Vector<String>{ "path" }), _tool_read_file);
-	p_server->register_tool("write_file", "Alias of filesystem_manage op=write. Args: path, content.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_file);
-	p_server->register_tool("list_assets", "Alias of filesystem_manage op=list. Args: pattern, recursive.", _schema_any(Vector<String>{ "pattern", "recursive" }), _tool_list_assets);
+	p_server->register_tool("filesystem_manage", "Operasi filesystem. Args: op (read|write|list), path, content, pattern, recursive.", _schema(true, Vector<String>{ "op" }), _tool_filesystem_manage);
+	p_server->register_tool("read_file", "Alias dari filesystem_manage op=read. Args: path, json.", _schema(true, Vector<String>{ "path" }), _tool_read_file);
+	p_server->register_tool("write_file", "Alias dari filesystem_manage op=write. Args: path, content.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_file);
+	p_server->register_tool("list_assets", "Alias dari filesystem_manage op=list. Args: pattern, recursive.", _schema_any(Vector<String>{ "pattern", "recursive" }), _tool_list_assets);
 
 	// Project & run tools.
-	p_server->register_tool("project_manage", "Project operations. Args: op (info|get_setting|set_setting), name, value, save.", _schema(true, Vector<String>{ "op" }), _tool_project_manage);
-	p_server->register_tool("project_info", "Alias of project_manage op=info.", _schema_any(Vector<String>()), _tool_project_info);
-	p_server->register_tool("get_project_setting", "Alias of project_manage op=get_setting. Args: name.", _schema(true, Vector<String>{ "name" }), _tool_get_project_setting);
-	p_server->register_tool("set_project_setting", "Alias of project_manage op=set_setting. Args: name, value, save.", _schema(true, Vector<String>{ "name" }), _tool_set_project_setting);
-	p_server->register_tool("project_run", "Run/stop the project. Args: op (play|run_scene|stop|state), path.", _schema(true, Vector<String>{ "op" }), _tool_project_run);
-	p_server->register_tool("run_main_scene", "Alias of project_run op=play.", _schema_any(Vector<String>()), _tool_run_main_scene);
-	p_server->register_tool("run_custom_scene", "Alias of project_run op=run_scene. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_run_custom_scene);
-	p_server->register_tool("stop_game", "Alias of project_run op=stop.", _schema_any(Vector<String>()), _tool_stop_game);
-	p_server->register_tool("game_state", "Alias of project_run op=state.", _schema_any(Vector<String>()), _tool_game_state);
+	p_server->register_tool("project_manage", "Operasi proyek. Args: op (info|get_setting|set_setting), name, value, save.", _schema(true, Vector<String>{ "op" }), _tool_project_manage);
+	p_server->register_tool("project_info", "Alias dari project_manage op=info.", _schema_any(Vector<String>()), _tool_project_info);
+	p_server->register_tool("get_project_setting", "Alias dari project_manage op=get_setting. Args: name.", _schema(true, Vector<String>{ "name" }), _tool_get_project_setting);
+	p_server->register_tool("set_project_setting", "Alias dari project_manage op=set_setting. Args: name, value, save.", _schema(true, Vector<String>{ "name" }), _tool_set_project_setting);
+	p_server->register_tool("project_run", "Jalankan/hentikan proyek. Args: op (play|run_scene|stop|state), path.", _schema(true, Vector<String>{ "op" }), _tool_project_run);
+	p_server->register_tool("run_main_scene", "Alias dari project_run op=play.", _schema_any(Vector<String>()), _tool_run_main_scene);
+	p_server->register_tool("run_custom_scene", "Alias dari project_run op=run_scene. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_run_custom_scene);
+	p_server->register_tool("stop_game", "Alias dari project_run op=stop.", _schema_any(Vector<String>()), _tool_stop_game);
+	p_server->register_tool("game_state", "Alias dari project_run op=state.", _schema_any(Vector<String>()), _tool_game_state);
 
 	// Game input.
-	p_server->register_tool("game_manage", "Game operations. Args: op (state|send_action|send_key|send_mouse|input), action/key/button, pressed, position, kind.", _schema(true, Vector<String>{ "op" }), _tool_game_manage);
-	p_server->register_tool("send_input", "Alias of game_manage op=input. Args: kind (action|key|mouse_button), action/key/button, pressed, position.", _schema(false, Vector<String>{ "kind", "action", "key", "button", "pressed", "position" }), _tool_send_input);
+	p_server->register_tool("game_manage", "Operasi game. Args: op (state|send_action|send_key|send_mouse|input), action/key/button, pressed, position, kind.", _schema(true, Vector<String>{ "op" }), _tool_game_manage);
+	p_server->register_tool("send_input", "Alias dari game_manage op=input. Args: kind (action|key|mouse_button), action/key/button, pressed, position.", _schema(false, Vector<String>{ "kind", "action", "key", "button", "pressed", "position" }), _tool_send_input);
 
 	// Editor utilities.
-	p_server->register_tool("editor_screenshot", "Capture a screenshot of the editor viewport (or the game when running). Returns a PNG image. Args: source (editor|game|2d).", _schema_any(Vector<String>{ "source" }), _tool_screenshot);
-	p_server->register_tool("screenshot", "Alias of editor_screenshot.", _schema_any(Vector<String>{ "source" }), _tool_screenshot);
-	p_server->register_tool("batch_execute", "Run several tools in one round-trip. Args: operations (array of {tool: name, arguments: {}}), stop_on_error (bool). Returns an array of results.", _schema_any(Vector<String>{ "stop_on_error" }), _tool_batch_execute);
-	p_server->register_tool("logs_read", "Read recent editor errors/warnings/MCP log lines. Args: level (all|error|warning|info), limit (int).", _schema_any(Vector<String>{ "level", "limit" }), _tool_logs_read);
-	p_server->register_tool("debugger_errors", "Read errors/warnings currently shown in the editor Debugger panel (from a running game).", _schema_any(Vector<String>()), _tool_debugger_errors);
-	p_server->register_tool("refresh", "Rescan the project filesystem and reload any scenes/project settings that changed on disk, without restarting the editor.", _schema_any(Vector<String>()), _tool_refresh);
+	p_server->register_tool("editor_screenshot", "Ambil screenshot viewport editor (atau game saat sedang berjalan). Mengembalikan gambar PNG. Args: source (editor|game|2d).", _schema_any(Vector<String>{ "source" }), _tool_screenshot);
+	p_server->register_tool("screenshot", "Alias dari editor_screenshot.", _schema_any(Vector<String>{ "source" }), _tool_screenshot);
+	p_server->register_tool("batch_execute", "Jalankan beberapa tool dalam satu kali perjalanan. Args: operations (array berisi {tool: nama, arguments: {}}), stop_on_error (bool). Mengembalikan array hasil.", _schema_any(Vector<String>{ "stop_on_error" }), _tool_batch_execute);
+	p_server->register_tool("logs_read", "Baca baris log error/peringatan/MCP editor terbaru. Args: level (all|error|warning|info), limit (int).", _schema_any(Vector<String>{ "level", "limit" }), _tool_logs_read);
+	p_server->register_tool("debugger_errors", "Baca error/peringatan yang sedang tampil di panel Debugger editor (dari game yang sedang berjalan).", _schema_any(Vector<String>()), _tool_debugger_errors);
+	p_server->register_tool("refresh", "Pindai ulang filesystem proyek dan muat ulang scene/pengaturan proyek yang berubah di disk, tanpa memulai ulang editor.", _schema_any(Vector<String>()), _tool_refresh);
 }
 
 #endif // TOOLS_ENABLED

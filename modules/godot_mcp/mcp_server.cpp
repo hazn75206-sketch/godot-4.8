@@ -193,7 +193,7 @@ void McpServer::start_server() {
 	http = std::make_unique<MCPHttpServer>(this);
 	if (!http->start()) {
 		http.reset();
-		ERR_PRINT(vformat("Godot MCP: failed to bind %s:%d", get_bind(), get_port()));
+		ERR_PRINT(vformat("Godot MCP: gagal mengikat %s:%d", get_bind(), get_port()));
 		return;
 	}
 	running = true;
@@ -205,8 +205,8 @@ void McpServer::start_server() {
 		st->connect(SNAME("process_frame"), callable_mp(this, &McpServer::_tick));
 		tick_connected = true;
 	}
-	print_line(vformat("Godot MCP: server running on %s", get_mcp_url()));
-	mcp_log_append(vformat("Godot MCP: server running on %s", get_mcp_url()));
+	print_line(vformat("Godot MCP: server berjalan di %s", get_mcp_url()));
+	mcp_log_append(vformat("Godot MCP: server berjalan di %s", get_mcp_url()));
 #ifdef ANDROID_ENABLED
 	mcp_android_notification_on();
 #endif
@@ -228,8 +228,8 @@ void McpServer::stop_server() {
 #ifdef ANDROID_ENABLED
 	mcp_android_notification_off();
 #endif
-	print_verbose("Godot MCP: server stopped");
-	mcp_log_append("Godot MCP: server stopped");
+	print_verbose("Godot MCP: server dihentikan");
+	mcp_log_append("Godot MCP: server dihentikan");
 }
 
 void McpServer::register_editor_settings() {
@@ -260,11 +260,11 @@ void McpServer::register_editor_settings() {
 	if (!es->has_setting("run/window_placement/rect")) {
 		es->set_setting("run/window_placement/rect", Rect2i(0, 0, 0, 0));
 	}
-	es->add_property_hint(PropertyInfo(Variant::BOOL, "mcp/enabled", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT, "Run the MCP server while the editor is open"));
-	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/transport", PROPERTY_HINT_ENUM, "Both (Streamable HTTP + SSE),Streamable HTTP only,SSE only"));
-	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/bind_mode", PROPERTY_HINT_ENUM, "LAN (accessible from other devices),Localhost only"));
+	es->add_property_hint(PropertyInfo(Variant::BOOL, "mcp/enabled", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT, "Jalankan server MCP saat editor terbuka"));
+	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/transport", PROPERTY_HINT_ENUM, "Keduanya (Streamable HTTP + SSE),Hanya Streamable HTTP,Hanya SSE"));
+	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/bind_mode", PROPERTY_HINT_ENUM, "LAN (bisa diakses dari perangkat lain),Hanya Localhost"));
 	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/port", PROPERTY_HINT_RANGE, "1,65535,1"));
-	es->add_property_hint(PropertyInfo(Variant::BOOL, "mcp/auto_reload_external", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT, "Automatically reload files changed outside the editor (no prompt)"));
+	es->add_property_hint(PropertyInfo(Variant::BOOL, "mcp/auto_reload_external", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT, "Muat ulang otomatis file yang berubah di luar editor (tanpa konfirmasi)"));
 	// The MCP server never auto-starts on launch. Keep the poll connected so
 	// enabling/disabling the setting takes effect immediately without a restart.
 	McpServer *s = McpServer::get_singleton();
@@ -331,8 +331,8 @@ Variant McpServer::_handle_request(const String &p_session_id, const Variant &p_
 			sessions[sid] = s;
 		}
 		protocol_version = proto;
-		print_line(vformat("Godot MCP: client '%s %s' connected (session %s, protocol %s)", client_name, client_version, sid, proto));
-		mcp_log_append(vformat("Godot MCP: client '%s %s' connected (session %s, protocol %s)", client_name, client_version, sid, proto));
+		print_line(vformat("Godot MCP: klien '%s %s' terhubung (session %s, protocol %s)", client_name, client_version, sid, proto));
+		mcp_log_append(vformat("Godot MCP: klien '%s %s' terhubung (session %s, protocol %s)", client_name, client_version, sid, proto));
 		Dictionary caps;
 		caps["tools"] = Dictionary{ { "listChanged", true } };
 		caps["logging"] = Dictionary{};
@@ -549,7 +549,7 @@ Variant McpServer::run_tool(Variant (*p_handler)(const Dictionary &p_args), cons
 	}
 	if (!task.done) {
 		task.done = true;
-		ERR_PRINT("Godot MCP: tool timed out on main thread");
+		ERR_PRINT("Godot MCP: tool kehabisan waktu di thread utama");
 		return Dictionary{ { "content", Array{ Dictionary{ { "type", "text" }, { "text", "Main thread timeout" } } } }, { "isError", true } };
 	}
 	return task.result;

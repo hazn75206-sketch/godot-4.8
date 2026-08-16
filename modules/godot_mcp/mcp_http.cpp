@@ -330,7 +330,7 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 		}
 
 		if (p_conn->path == "/") {
-			String body = "Godot MCP server is running on port " + itos(port) + ".\nEndpoints:\n  POST /mcp (streamable HTTP)\n  GET /mcp (SSE stream)\n  GET /sse (SSE)\n";
+			String body = "Server MCP Godot berjalan di port " + itos(port) + ".\nEndpoint:\n  POST /mcp (streamable HTTP)\n  GET /mcp (SSE stream)\n  GET /sse (SSE)\n";
 			_send_response(p_conn, 200, "text/plain", body, "");
 			return;
 		}
