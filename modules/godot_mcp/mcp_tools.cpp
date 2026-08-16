@@ -439,9 +439,9 @@ static Variant _tool_add_node(const Dictionary &p_args) {
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
 	ur->create_action(vformat("MCP: add node %s", final_name));
 	ur->add_do_method(parent, "add_child", node, true);
-	ur->add_do_method(node, "set_owner", root, true);
-	ur->add_undo_method(node, "set_owner", (Object *)nullptr, true);
-	ur->add_undo_method(parent, "remove_child", node, true);
+	ur->add_do_method(node, "set_owner", root);
+	ur->add_undo_method(node, "set_owner", (Object *)nullptr);
+	ur->add_undo_method(parent, "remove_child", node);
 	ur->commit_action();
 	return mcp_tool_ret_text(vformat("Added %s '%s' under %s", class_name, final_name, parent->get_path()));
 }
@@ -462,7 +462,7 @@ static Variant _tool_remove_node(const Dictionary &p_args) {
 	ur->create_action(vformat("MCP: remove node %s", node->get_name()));
 	ur->add_do_method(parent, "remove_child", node);
 	ur->add_undo_method(parent, "add_child", node, true);
-	ur->add_undo_method(node, "set_owner", root, true);
+	ur->add_undo_method(node, "set_owner", root);
 	ur->commit_action();
 	return mcp_tool_ret_text(vformat("Removed node %s", path));
 }
@@ -547,9 +547,9 @@ static Variant _tool_reparent_node(const Dictionary &p_args) {
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
 	ur->create_action(vformat("MCP: reparent %s", node->get_name()));
 	ur->add_do_method(new_parent, "add_child", node, true);
-	ur->add_do_method(node, "set_owner", root, true);
+	ur->add_do_method(node, "set_owner", root);
 	ur->add_undo_method(old_parent, "add_child", node, true);
-	ur->add_undo_method(node, "set_owner", root, true);
+	ur->add_undo_method(node, "set_owner", root);
 	ur->commit_action();
 	return mcp_tool_ret_text(vformat("Reparented %s under %s", node->get_name(), new_parent->get_path()));
 }
