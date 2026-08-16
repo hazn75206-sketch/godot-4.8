@@ -1,5 +1,7 @@
 #include "mcp_tools.h"
 
+#include "editor/debugger/editor_debugger_node.h"
+#include "editor/debugger/script_editor_debugger.h"
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
 #include "core/crypto/crypto_core.h"
@@ -1053,6 +1055,53 @@ static Variant _tool_logs_read(const Dictionary &p_args) {
 	return mcp_tool_ret_json(lines);
 }
 
+static Variant _tool_debugger_errors(const Dictionary &p_args) {
+	// Reads the editor Debugger panel: errors/warnings reported by a running
+	// game (which are delivered over the debugger protocol and are NOT seen
+	// by the in-process error handler used by logs_read).
+	EditorDebuggerNode *edn = EditorDebuggerNode::get_singleton();
+	Array out;
+	for (int i = 0; i < 32; i++) { // Sessions are a small fixed set of tabs.
+		ScriptEditorDebugger *dbg = edn->get_debugger(i);
+		if (!dbg) {
+			break;
+		}
+		Dictionary session;
+		session["session"] = i;
+		session["active"] = dbg->is_session_active();
+		session["error_count"] = dbg->get_error_count();
+		session["warning_count"] = dbg->get_warning_count();
+		Array entries;
+		Tree *tree = dbg->get_errors_tree();
+		if (tree && tree->get_root()) {
+			TreeItem *item = tree->get_root()->get_first_child();
+			while (item) {
+				Dictionary e;
+				e["level"] = item->has_meta("_is_warning") ? "warning" : "error";
+				e["time"] = item->get_text(0);
+				e["message"] = item->get_text(1);
+				Array details;
+				TreeItem *child = item->get_first_child();
+				while (child) {
+					String t = child->get_text(0);
+					if (!t.is_empty()) {
+						details.append(t);
+					}
+					child = child->get_next();
+				}
+				if (!details.is_empty()) {
+					e["details"] = details;
+				}
+				entries.append(e);
+				item = item->get_next();
+			}
+		}
+		session["entries"] = entries;
+		out.append(session);
+	}
+	return mcp_tool_ret_json(out);
+}
+
 static Dictionary _schema(bool p_required, const Vector<String> &p_props) {
 	Dictionary props;
 	for (const String &p : p_props) {
@@ -1154,6 +1203,7 @@ void mcp_register_tools(McpServer *p_server) {
 	p_server->register_tool("screenshot", "Alias of editor_screenshot.", _schema_any(Vector<String>{ "source" }), _tool_screenshot);
 	p_server->register_tool("batch_execute", "Run several tools in one round-trip. Args: operations (array of {tool: name, arguments: {}}), stop_on_error (bool). Returns an array of results.", _schema_any(Vector<String>{ "stop_on_error" }), _tool_batch_execute);
 	p_server->register_tool("logs_read", "Read recent editor errors/warnings/MCP log lines. Args: level (all|error|warning|info), limit (int).", _schema_any(Vector<String>{ "level", "limit" }), _tool_logs_read);
+	p_server->register_tool("debugger_errors", "Read errors/warnings currently shown in the editor Debugger panel (from a running game).", _schema_any(Vector<String>()), _tool_debugger_errors);
 }
 
 #endif // TOOLS_ENABLED

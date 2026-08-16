@@ -264,6 +264,14 @@ void McpServer::register_editor_settings() {
 	if (!es->has_setting("mcp/token")) {
 		es->set_setting("mcp/token", String());
 	}
+	// The Android editor fork lacks GDK window placement settings; define them
+	// so running the project stops spamming ERR_PRINT "does not exist" errors.
+	if (!es->has_setting("run/window_placement/screen")) {
+		es->set_setting("run/window_placement/screen", 0);
+	}
+	if (!es->has_setting("run/window_placement/rect")) {
+		es->set_setting("run/window_placement/rect", Rect2i(0, 0, 0, 0));
+	}
 	es->add_property_hint(PropertyInfo(Variant::BOOL, "mcp/enabled", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT, "Run the MCP server while the editor is open"));
 	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/transport", PROPERTY_HINT_ENUM, "Both (Streamable HTTP + SSE),Streamable HTTP only,SSE only"));
 	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/bind_mode", PROPERTY_HINT_ENUM, "LAN (accessible from other devices),Localhost only"));
