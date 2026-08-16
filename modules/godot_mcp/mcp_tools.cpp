@@ -704,22 +704,96 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 				if (d.has("bg_color")) {
 					Variant bg = d["bg_color"];
 					if (bg.get_type() == Variant::STRING) {
-						sb->bg_color = Color(bg);
+						sb->set_bg_color(Color(bg));
 					} else if (bg.get_type() == Variant::COLOR) {
-						sb->bg_color = bg;
+						sb->set_bg_color(bg);
 					}
 				}
-				if (d.has("margin")) {
-					sb->margin = d["margin"];
+				// Border widths (left, right, top, bottom)
+				if (d.has("border_width")) {
+					int bw = d["border_width"];
+					sb->set_border_width_left(bw);
+					sb->set_border_width_right(bw);
+					sb->set_border_width_top(bw);
+					sb->set_border_width_bottom(bw);
 				}
-				if (d.has("draw")) {
-					sb->draw = d["draw"];
+				if (d.has("border_width_left")) {
+					sb->set_border_width_left(d["border_width_left"]);
 				}
-				if (d.has("shadow")) {
-					sb->shadow = d["shadow"];
+				if (d.has("border_width_right")) {
+					sb->set_border_width_right(d["border_width_right"]);
 				}
-				if (d.has("border")) {
-					sb->border = d["border"];
+				if (d.has("border_width_top")) {
+					sb->set_border_width_top(d["border_width_top"]);
+				}
+				if (d.has("border_width_bottom")) {
+					sb->set_border_width_bottom(d["border_width_bottom"]);
+				}
+				// Corner radii
+				if (d.has("corner_radius")) {
+					int cr = d["corner_radius"];
+					sb->set_corner_radius_top_left(cr);
+					sb->set_corner_radius_top_right(cr);
+					sb->set_corner_radius_bottom_left(cr);
+					sb->set_corner_radius_bottom_right(cr);
+				}
+				if (d.has("corner_radius_top_left")) {
+					sb->set_corner_radius_top_left(d["corner_radius_top_left"]);
+				}
+				if (d.has("corner_radius_top_right")) {
+					sb->set_corner_radius_top_right(d["corner_radius_top_right"]);
+				}
+				if (d.has("corner_radius_bottom_left")) {
+					sb->set_corner_radius_bottom_left(d["corner_radius_bottom_left"]);
+				}
+				if (d.has("corner_radius_bottom_right")) {
+					sb->set_corner_radius_bottom_right(d["corner_radius_bottom_right"]);
+				}
+				// Expand margins
+				if (d.has("expand_margin")) {
+					int em = d["expand_margin"];
+					sb->set_expand_margin_left(em);
+					sb->set_expand_margin_right(em);
+					sb->set_expand_margin_top(em);
+					sb->set_expand_margin_bottom(em);
+				}
+				if (d.has("expand_margin_left")) {
+					sb->set_expand_margin_left(d["expand_margin_left"]);
+				}
+				if (d.has("expand_margin_right")) {
+					sb->set_expand_margin_right(d["expand_margin_right"]);
+				}
+				if (d.has("expand_margin_top")) {
+					sb->set_expand_margin_top(d["expand_margin_top"]);
+				}
+				if (d.has("expand_margin_bottom")) {
+					sb->set_expand_margin_bottom(d["expand_margin_bottom"]);
+				}
+				// Shadow
+				if (d.has("shadow_color")) {
+					Variant sc = d["shadow_color"];
+					if (sc.get_type() == Variant::STRING) {
+						sb->set_shadow_color(Color(sc));
+					} else if (sc.get_type() == Variant::COLOR) {
+						sb->set_shadow_color(sc);
+					}
+				}
+				if (d.has("shadow_enabled")) {
+					sb->set_shadow_enabled(d["shadow_enabled"]);
+				}
+				if (d.has("shadow_offset")) {
+					Variant so = d["shadow_offset"];
+					if (so.get_type() == Variant::DICTIONARY) {
+						Dictionary sod = so;
+						sb->set_shadow_offset(Vector2(sod.get("x", 0.0), sod.get("y", 0.0)));
+					}
+				}
+				if (d.has("shadow_size")) {
+					sb->set_shadow_size(d["shadow_size"]);
+				}
+				// Draw center
+				if (d.has("draw_center")) {
+					sb->set_draw_center(d["draw_center"]);
 				}
 				value = sb;
 			}
