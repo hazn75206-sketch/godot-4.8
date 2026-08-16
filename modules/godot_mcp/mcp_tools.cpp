@@ -112,11 +112,58 @@ static Node *_resolve_node(const String &p_path) {
 	if (p_path.is_empty() || p_path == "." || p_path == "/") {
 		return root;
 	}
-	return root->get_node_or_null(NodePath(p_path));
+	String p = p_path.strip_edges();
+	while (p.ends_with("/")) {
+		p = p.substr(0, p.length() - 1);
+	}
+	if (p.is_empty()) {
+		return root;
+	}
+	// 1) Scene-relative path, e.g. "MenuPanel/MenuBox" or "MainMenu".
+	Node *n = root->get_node_or_null(NodePath(p));
+	if (n) {
+		return n;
+	}
+	if (p == root->get_name()) {
+		return root;
+	}
+	// 2) First segment equals the scene root name or scene file base name
+	// (clients often send "MainMenu/MenuPanel" or "/root/MainMenu/MenuPanel").
+	String root_name = root->get_name();
+	String root_file = root->get_scene_file_path().get_file().get_basename();
+	Vector<String> segs = p.split("/");
+	if (segs.size() >= 2 && (segs[0] == root_name || segs[0] == root_file)) {
+		n = root->get_node_or_null(NodePath(p.substr(segs[0].length() + 1)));
+		if (n) {
+			return n;
+		}
+	}
+	// 3) Tree-absolute path, e.g. "/root/@EditorNode@.../@SubViewport@.../MainMenu/MenuPanel".
+	if (p.begins_with("/") && root->get_tree()) {
+		n = root->get_tree()->get_root()->get_node_or_null(NodePath(p));
+		if (n) {
+			Node *check = n->get_parent();
+			while (check) {
+				if (check == root) {
+					return n;
+				}
+				check = check->get_parent();
+			}
+		}
+	}
+	return nullptr;
 }
 
 static bool _has_project() {
 	return ProjectSettings::get_singleton()->has_setting("application/config/name");
+}
+
+static String _scene_rel_path(Node *p_node) {
+	Node *root = _scene_root();
+	if (!root || !p_node) {
+		return String();
+	}
+	return "/" + String(root->get_path_to(p_node));
 }
 
 static bool _wildcard_match(const String &p_pattern, const String &p_str) {
@@ -298,11 +345,70 @@ static Variant _tool_read_file(const Dictionary &p_args) {
 	return mcp_tool_ret_text(content);
 }
 
+// Extract the uid="uid://..." value from a .tscn [gd_scene] header, or "".
+static String _tscn_header_uid(const String &p_content) {
+	int h = p_content.find("[gd_scene");
+	if (h == -1) {
+		return String();
+	}
+	int end = p_content.find("\n", h);
+	if (end == -1) {
+		end = p_content.length();
+	}
+	String header = p_content.substr(h, end - h);
+	int p = header.find("uid=\"uid://");
+	if (p == -1) {
+		return String();
+	}
+	int q = header.find("\"", p + 5);
+	if (q == -1) {
+		return String();
+	}
+	return header.substr(p + 5, q - (p + 5));
+}
+
+// Rewrite the [gd_scene] header so its uid matches p_uid, inserting the
+// attribute when missing and replacing it when it differs.
+static String _tscn_set_header_uid(const String &p_content, const String &p_uid) {
+	int h = p_content.find("[gd_scene");
+	if (h == -1) {
+		return p_content;
+	}
+	int end = p_content.find("\n", h);
+	if (end == -1) {
+		end = p_content.length();
+	}
+	String header = p_content.substr(h, end - h);
+	String new_header;
+	if (header.contains("uid=")) {
+		int p = header.find("uid=");
+		int q = header.find("\"", p + 4);
+		if (q == -1) {
+			return p_content;
+		}
+		new_header = header.substr(0, p) + "uid=\"" + p_uid + "\"" + header.substr(q + 1);
+	} else {
+		new_header = header + " uid=\"" + p_uid + "\"";
+	}
+	return p_content.substr(0, h) + new_header + p_content.substr(end);
+}
+
 static Variant _tool_write_file(const Dictionary &p_args) {
 	String path = p_args.get("path", String());
 	String content = p_args.get("content", String());
 	if (path.is_empty()) {
 		return mcp_tool_ret_error("Argumen 'path' wajib diisi.");
+	}
+	bool uid_preserved = false;
+	if (path.ends_with(".tscn") && FileAccess::exists(path)) {
+		Ref<FileAccess> of = FileAccess::open(path, FileAccess::READ);
+		if (of.is_valid()) {
+			String old_uid = _tscn_header_uid(of->get_as_text());
+			if (!old_uid.is_empty() && _tscn_header_uid(content) != old_uid) {
+				content = _tscn_set_header_uid(content, old_uid);
+				uid_preserved = true;
+			}
+		}
 	}
 	// Ensure parent dirs exist.
 	String dir = path.get_base_dir();
@@ -318,6 +424,9 @@ static Variant _tool_write_file(const Dictionary &p_args) {
 	f->store_string(content);
 	f->close();
 	_mcp_refresh_editor();
+	if (uid_preserved) {
+		return mcp_tool_ret_text(vformat("Berhasil menulis %d byte ke %s (UID scene asli dipertahankan)", content.utf8().length(), path));
+	}
 	return mcp_tool_ret_text(vformat("Berhasil menulis %d byte ke %s", content.utf8().length(), path));
 }
 
@@ -459,7 +568,7 @@ static Variant _tool_add_node(const Dictionary &p_args) {
 	ur->add_undo_method(node, "set_owner", (Object *)nullptr);
 	ur->add_undo_method(parent, "remove_child", node);
 	ur->commit_action();
-	return mcp_tool_ret_text(vformat("Menambahkan %s \'%s\' di bawah %s", class_name, final_name, parent->get_path()));
+	return mcp_tool_ret_text(vformat("Menambahkan %s \'%s\' di bawah %s", class_name, final_name, _scene_rel_path(parent)));
 }
 
 static Variant _tool_remove_node(const Dictionary &p_args) {
@@ -503,6 +612,32 @@ static Variant _tool_rename_node(const Dictionary &p_args) {
 	return mcp_tool_ret_text(vformat("Diganti nama %s -> %s", path, new_name));
 }
 
+// Resolve a property name that may be a dynamic (runtime generated) property,
+// e.g. "theme_override_styles" on Control, which is not in ClassDB but appears
+// in get_property_list() as "theme_override_styles/<item>". Returns true when
+// found; r_name receives the concrete property to read/write.
+static bool _resolve_property(Node *p_node, const String &p_prop, String &r_name) {
+	bool ok = false;
+	p_node->get(p_prop, &ok);
+	if (ok) {
+		r_name = p_prop;
+		return true;
+	}
+	List<PropertyInfo> pinfo;
+	p_node->get_property_list(&pinfo);
+	for (const PropertyInfo &E : pinfo) {
+		if (E.name == p_prop) {
+			r_name = p_prop;
+			return true;
+		}
+		if (E.name.begins_with(p_prop + "/")) {
+			r_name = E.name;
+			return true;
+		}
+	}
+	return false;
+}
+
 static Variant _tool_get_node_property(const Dictionary &p_args) {
 	Node *node = _resolve_node(p_args.get("path", String()));
 	if (!node) {
@@ -512,14 +647,18 @@ static Variant _tool_get_node_property(const Dictionary &p_args) {
 	if (prop.is_empty()) {
 		return mcp_tool_ret_error("Argumen 'property' wajib diisi.");
 	}
-	bool ok = false;
-	Variant v = node->get(prop, &ok);
-	if (!ok) {
+	String concrete;
+	if (!_resolve_property(node, prop, concrete)) {
 		return mcp_tool_ret_error(vformat("Property tidak ditemukan: %s", prop));
+	}
+	bool ok = false;
+	Variant v = node->get(concrete, &ok);
+	if (!ok) {
+		return mcp_tool_ret_error(vformat("Property tidak dapat dibaca: %s", concrete));
 	}
 	Dictionary out;
 	out["path"] = p_args.get("path", String());
-	out["property"] = prop;
+	out["property"] = concrete;
 	out["value"] = v;
 	return mcp_tool_ret_json(out);
 }
@@ -534,15 +673,19 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 	if (prop.is_empty()) {
 		return mcp_tool_ret_error("Argumen 'property' wajib diisi.");
 	}
+	String concrete;
+	if (!_resolve_property(node, prop, concrete)) {
+		return mcp_tool_ret_error(vformat("Property tidak ditemukan: %s", prop));
+	}
 	Variant value = p_args.get("value", Variant());
 	bool ok = false;
-	Variant old = node->get(prop, &ok);
+	Variant old = node->get(concrete, &ok);
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
-	ur->create_action(vformat("MCP: menetapkan %s.%s", p_args.get("path", String()), prop));
-	ur->add_do_method(node, "set", prop, value);
-	ur->add_undo_method(node, "set", prop, old);
+	ur->create_action(vformat("MCP: menetapkan %s.%s", p_args.get("path", String()), concrete));
+	ur->add_do_method(node, "set", concrete, value);
+	ur->add_undo_method(node, "set", concrete, old);
 	ur->commit_action();
-	return mcp_tool_ret_text(vformat("Menetapkan %s.%s", p_args.get("path", String()), prop));
+	return mcp_tool_ret_text(vformat("Menetapkan %s.%s", p_args.get("path", String()), concrete));
 }
 
 static Variant _tool_reparent_node(const Dictionary &p_args) {
@@ -567,7 +710,7 @@ static Variant _tool_reparent_node(const Dictionary &p_args) {
 	ur->add_undo_method(old_parent, "add_child", node, true);
 	ur->add_undo_method(node, "set_owner", root);
 	ur->commit_action();
-	return mcp_tool_ret_text(vformat("Memindahkan %s di bawah %s", node->get_name(), new_parent->get_path()));
+	return mcp_tool_ret_text(vformat("Memindahkan %s di bawah %s", node->get_name(), _scene_rel_path(new_parent)));
 }
 
 static Variant _tool_read_script(const Dictionary &p_args) {
@@ -1003,8 +1146,11 @@ static Variant _tool_game_manage(const Dictionary &p_args) {
 static Variant _tool_batch_execute(const Dictionary &p_args) {
 	McpServer *s = McpServer::get_singleton();
 	Array ops = p_args.get("operations", Array());
+	if (ops.is_empty() && p_args.has("tools")) {
+		ops = p_args.get("tools", Array());
+	}
 	if (ops.is_empty()) {
-		return mcp_tool_ret_error("Missing 'operations' (array of {'tool': name, 'arguments': {}}).");
+		return mcp_tool_ret_error("Missing 'operations' (array of {'tool': name, 'arguments': ...}). Gunakan bentuk: {\"operations\": [{\"tool\": \"...\", \"arguments\": {...}}]} atau kirim langsung array sebagai arguments.");
 	}
 	bool stop_on_error = p_args.get("stop_on_error", true);
 	Array results;
@@ -1020,6 +1166,9 @@ static Variant _tool_batch_execute(const Dictionary &p_args) {
 		Dictionary op = v;
 		String tool = op.get("tool", String());
 		if (tool.is_empty()) {
+			tool = op.get("name", String());
+		}
+		if (tool.is_empty()) {
 			results.append(mcp_tool_ret_error(vformat("operations[%d] tidak memiliki \'tool\'", i)));
 			if (stop_on_error) {
 				break;
@@ -1027,6 +1176,12 @@ static Variant _tool_batch_execute(const Dictionary &p_args) {
 			continue;
 		}
 		Dictionary args = op.get("arguments", Dictionary());
+		if (args.is_empty() && op.has("args")) {
+			Variant alt = op.get("args", Variant());
+			if (alt.get_type() == Variant::DICTIONARY) {
+				args = alt;
+			}
+		}
 		Dictionary res = s->execute_tool(tool, args);
 		results.append(res);
 		if (stop_on_error && bool(res.get("isError", false))) {
@@ -1229,7 +1384,7 @@ void mcp_register_tools(McpServer *p_server) {
 	// Editor utilities.
 	p_server->register_tool("editor_screenshot", "Ambil screenshot viewport editor (atau game saat sedang berjalan). Mengembalikan gambar PNG. Args: source (editor|game|2d).", _schema_any(Vector<String>{ "source" }), _tool_screenshot);
 	p_server->register_tool("screenshot", "Alias dari editor_screenshot.", _schema_any(Vector<String>{ "source" }), _tool_screenshot);
-	p_server->register_tool("batch_execute", "Jalankan beberapa tool dalam satu kali perjalanan. Args: operations (array berisi {tool: nama, arguments: {}}), stop_on_error (bool). Mengembalikan array hasil.", _schema_any(Vector<String>{ "stop_on_error" }), _tool_batch_execute);
+	p_server->register_tool("batch_execute", "Jalankan beberapa tool dalam satu kali perjalanan. Args: operations (array berisi {tool: nama, arguments: {}}), stop_on_error (bool). Mengembalikan array hasil.", _schema_any(Vector<String>{ "operations", "stop_on_error" }), _tool_batch_execute);
 	p_server->register_tool("logs_read", "Baca baris log error/peringatan/MCP editor terbaru. Args: level (all|error|warning|info), limit (int).", _schema_any(Vector<String>{ "level", "limit" }), _tool_logs_read);
 	p_server->register_tool("debugger_errors", "Baca error/peringatan yang sedang tampil di panel Debugger editor (dari game yang sedang berjalan).", _schema_any(Vector<String>()), _tool_debugger_errors);
 	p_server->register_tool("refresh", "Pindai ulang filesystem proyek dan muat ulang scene/pengaturan proyek yang berubah di disk, tanpa memulai ulang editor.", _schema_any(Vector<String>()), _tool_refresh);

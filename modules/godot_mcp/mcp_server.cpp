@@ -378,7 +378,14 @@ Variant McpServer::_handle_request(const String &p_session_id, const Variant &p_
 
 	if (method == "tools/call") {
 		String name = params.get("name", String());
-		Dictionary arguments = params.get("arguments", Dictionary());
+		Variant av = params.get("arguments", Variant());
+		Dictionary arguments;
+		if (av.get_type() == Variant::DICTIONARY) {
+			arguments = av;
+		} else if (av.get_type() == Variant::ARRAY) {
+			// Some clients send a raw array as 'arguments' (batch_execute list).
+			arguments["operations"] = av;
+		}
 		Dictionary result_root = _execute_tool(name, arguments);
 		return Dictionary{ { "jsonrpc", "2.0" }, { "id", id }, { "result", result_root } };
 	}

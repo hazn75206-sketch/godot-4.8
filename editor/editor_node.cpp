@@ -1682,6 +1682,7 @@ void EditorNode::_resave_externally_modified_scenes(String p_action) {
 
 void EditorNode::_reload_modified_scenes() {
 	int current_idx = editor_data.get_edited_scene();
+	Vector<int> to_reload;
 
 	for (int i = 0; i < editor_data.get_edited_scene_count(); i++) {
 		if (editor_data.get_scene_path(i) == "") {
@@ -1692,16 +1693,15 @@ void EditorNode::_reload_modified_scenes() {
 		uint64_t date = FileAccess::get_modified_time(editor_data.get_scene_path(i));
 
 		if (date > last_date) {
-			String filename = editor_data.get_scene_path(i);
-			editor_data.set_edited_scene(i);
-			_remove_edited_scene(false);
-
-			Error err = open_scene(filename);
-			if (err != OK) {
-				ERR_PRINT(vformat("Failed to load scene: %s", filename));
-			}
-			editor_data.move_edited_scene_to_index(i);
+			to_reload.push_back(i);
 		}
+	}
+
+	for (int i = 0; i < to_reload.size(); i++) {
+		// reload_scene() handles removal, index restore, dependency tolerance
+		// (_p_ignore_broken_deps = true) and history cleanup, and restores the
+		// current tab, which the old remove+open dance did not reliably do.
+		reload_scene(editor_data.get_scene_path(to_reload[i]));
 	}
 
 	_set_current_scene(current_idx);
