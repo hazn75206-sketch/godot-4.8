@@ -70,6 +70,8 @@ Variant mcp_tool_ret_json(const Variant &p_value) {
 // ----------------------------------------------------------------- Error hook
 // Installed by mcp_register_tools() (TOOLS builds only).
 
+static ErrorHandlerList s_mcp_err_handler;
+
 static void _mcp_log_err_cb(void *p_ud, const char *p_func, const char *p_file, int p_line, const char *p_error, const char *p_verbose_error, bool p_editor_notify, ErrorHandlerType p_type) {
 	String text = vformat("[%s] %s (%s:%d)", p_type == ERR_HANDLER_WARNING ? "WARNING" : "ERROR", p_error, p_file, p_line);
 	if (p_verbose_error && *p_verbose_error) {
@@ -812,7 +814,7 @@ static Variant _tool_editor_state(const Dictionary &p_args) {
 	st["url"] = s ? s->get_mcp_url() : String();
 	st["port"] = s ? s->get_port() : -1;
 	st["enabled"] = s ? s->get_enabled() : false;
-	st["godot_version"] = Engine::get_version_info().get("string", String());
+	st["godot_version"] = Engine::get_singleton()->get_version_info().get("string", String());
 	return mcp_tool_ret_json(st);
 }
 
@@ -820,7 +822,7 @@ static Variant _session_info() {
 	Dictionary d;
 	d["status"] = "active";
 	d["project_path"] = ProjectSettings::get_singleton() ? ProjectSettings::get_singleton()->globalize_path("res://") : String();
-	d["godot_version"] = Engine::get_version_info().get("string", String());
+	d["godot_version"] = Engine::get_singleton()->get_version_info().get("string", String());
 	Node *root = _scene_root();
 	if (root) {
 		d["current_scene"] = root->get_scene_file_path();
