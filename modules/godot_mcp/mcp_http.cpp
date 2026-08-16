@@ -279,8 +279,17 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 		// Streamable HTTP: clients open the SSE receive-stream with GET on the
 		// MCP endpoint itself (path /mcp). GET /sse is kept as a legacy alias.
 		if (p_conn->path == "/mcp" || p_conn->path == "/sse") {
-			if (owner->get_transport() == 1) {
-				// 405 signals "no SSE stream at GET endpoint" and clients handle it gracefully.
+			// Streamable HTTP serves the SSE receive-stream on GET /mcp.
+			// GET /sse is the legacy SSE transport. Each is gated by the
+			// mcp/transport setting: 0 both, 1 streamable only, 2 SSE only.
+			bool sse_allowed;
+			if (p_conn->path == "/mcp") {
+				sse_allowed = owner->get_transport() != 2;
+			} else {
+				sse_allowed = owner->get_transport() != 1;
+			}
+			if (!sse_allowed) {
+				// 405 signals "no SSE stream at this endpoint" and clients handle it gracefully.
 				_send_response(p_conn, 405, "application/json", "{\"error\":\"SSE stream disabled\"}", "");
 				return;
 			}
