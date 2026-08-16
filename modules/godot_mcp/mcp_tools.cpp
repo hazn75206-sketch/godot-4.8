@@ -1252,7 +1252,17 @@ static Variant _tool_game_manage(const Dictionary &p_args) {
 
 static Variant _tool_batch_execute(const Dictionary &p_args) {
 	McpServer *s = McpServer::get_singleton();
-	Array ops = p_args.get("operations", Array());
+	Variant ops_v = p_args.get("operations", Variant());
+	Array ops;
+	if (ops_v.get_type() == Variant::ARRAY) {
+		ops = ops_v;
+	} else if (ops_v.get_type() == Variant::STRING) {
+		// Parse JSON string if operations sent as JSON string.
+		Variant parsed = JSON::parse_string(ops_v);
+		if (parsed.get_type() == Variant::ARRAY) {
+			ops = parsed;
+		}
+	}
 	if (ops.is_empty() && p_args.has("tools")) {
 		ops = p_args.get("tools", Array());
 	}
