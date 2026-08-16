@@ -133,7 +133,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
-            manifestPlaceholders += [editorBuildSuffix: " (debug)"]
+            manifestPlaceholders += [editorBuildSuffix: " Custom"]
             signingConfig signingConfigs.debug
         }
 
