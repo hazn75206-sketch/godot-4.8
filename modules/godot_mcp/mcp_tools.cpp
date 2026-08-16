@@ -709,67 +709,46 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 						sb->set_bg_color(bg);
 					}
 				}
-				// Border widths (left, right, top, bottom)
-				if (d.has("border_width")) {
-					int bw = d["border_width"];
-					sb->set_border_width_left(bw);
-					sb->set_border_width_right(bw);
-					sb->set_border_width_top(bw);
-					sb->set_border_width_bottom(bw);
-				}
-				if (d.has("border_width_left")) {
-					sb->set_border_width_left(d["border_width_left"]);
-				}
-				if (d.has("border_width_right")) {
-					sb->set_border_width_right(d["border_width_right"]);
-				}
-				if (d.has("border_width_top")) {
-					sb->set_border_width_top(d["border_width_top"]);
-				}
-				if (d.has("border_width_bottom")) {
-					sb->set_border_width_bottom(d["border_width_bottom"]);
-				}
-				// Corner radii
-				if (d.has("corner_radius")) {
-					int cr = d["corner_radius"];
-					sb->set_corner_radius_top_left(cr);
-					sb->set_corner_radius_top_right(cr);
-					sb->set_corner_radius_bottom_left(cr);
-					sb->set_corner_radius_bottom_right(cr);
-				}
-				if (d.has("corner_radius_top_left")) {
-					sb->set_corner_radius_top_left(d["corner_radius_top_left"]);
-				}
-				if (d.has("corner_radius_top_right")) {
-					sb->set_corner_radius_top_right(d["corner_radius_top_right"]);
-				}
-				if (d.has("corner_radius_bottom_left")) {
-					sb->set_corner_radius_bottom_left(d["corner_radius_bottom_left"]);
-				}
-				if (d.has("corner_radius_bottom_right")) {
-					sb->set_corner_radius_bottom_right(d["corner_radius_bottom_right"]);
-				}
-				// Expand margins
-				if (d.has("expand_margin")) {
-					int em = d["expand_margin"];
-					sb->set_expand_margin_left(em);
-					sb->set_expand_margin_right(em);
-					sb->set_expand_margin_top(em);
-					sb->set_expand_margin_bottom(em);
-				}
-				if (d.has("expand_margin_left")) {
-					sb->set_expand_margin_left(d["expand_margin_left"]);
-				}
-				if (d.has("expand_margin_right")) {
-					sb->set_expand_margin_right(d["expand_margin_right"]);
-				}
-				if (d.has("expand_margin_top")) {
-					sb->set_expand_margin_top(d["expand_margin_top"]);
-				}
-				if (d.has("expand_margin_bottom")) {
-					sb->set_expand_margin_bottom(d["expand_margin_bottom"]);
-				}
-				// Shadow
+						if (d.has("border_width")) {
+			sb->set_border_width_all(d["border_width"]);
+		}
+		if (d.has("border_width_left")) {
+			sb->set_border_width(Side::LEFT, d["border_width_left"]);
+		}
+		if (d.has("border_width_right")) {
+			sb->set_border_width(Side::RIGHT, d["border_width_right"]);
+		}
+		if (d.has("border_width_top")) {
+			sb->set_border_width(Side::TOP, d["border_width_top"]);
+		}
+		if (d.has("border_width_bottom")) {
+			sb->set_border_width(Side::BOTTOM, d["border_width_bottom"]);
+		}
+		// Corner radii
+		if (d.has("corner_radius")) {
+			sb->set_corner_radius_all(d["corner_radius"]);
+		}
+		if (d.has("corner_radius_top_left") || d.has("corner_radius_top_right") ||
+			d.has("corner_radius_bottom_left") || d.has("corner_radius_bottom_right")) {
+			int tl = d.has("corner_radius_top_left") ? d["corner_radius_top_left"] : 0;
+			int tr = d.has("corner_radius_top_right") ? d["corner_radius_top_right"] : 0;
+			int br = d.has("corner_radius_bottom_right") ? d["corner_radius_bottom_right"] : 0;
+			int bl = d.has("corner_radius_bottom_left") ? d["corner_radius_bottom_left"] : 0;
+			sb->set_corner_radius_individual(tl, tr, br, bl);
+		}
+		// Expand margins
+		if (d.has("expand_margin")) {
+			sb->set_expand_margin_all(d["expand_margin"]);
+		}
+		if (d.has("expand_margin_left") || d.has("expand_margin_top") ||
+			d.has("expand_margin_right") || d.has("expand_margin_bottom")) {
+			float l = d.has("expand_margin_left") ? d["expand_margin_left"] : 0.0f;
+			float t = d.has("expand_margin_top") ? d["expand_margin_top"] : 0.0f;
+			float r = d.has("expand_margin_right") ? d["expand_margin_right"] : 0.0f;
+			float b = d.has("expand_margin_bottom") ? d["expand_margin_bottom"] : 0.0f;
+			sb->set_expand_margin_individual(l, t, r, b);
+		}
+	// Shadow
 				if (d.has("shadow_color")) {
 					Variant sc = d["shadow_color"];
 					if (sc.get_type() == Variant::STRING) {
