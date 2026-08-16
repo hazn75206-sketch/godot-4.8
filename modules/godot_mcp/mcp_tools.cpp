@@ -67,31 +67,8 @@ Variant mcp_tool_ret_json(const Variant &p_value) {
 	return Dictionary{ { "content", Array{ Dictionary{ { "type", "text" }, { "text", JSON::stringify(p_value) } } } }, { "isError", false } };
 }
 
-// ----------------------------------------------------------------- Log ring
-// Small in-process ring buffer backing the `logs_read` tool. Fed by engine
-// errors/warnings (via ErrorHandlerList) and by the MCP server lifecycle.
-
-struct McpLogLine {
-	uint64_t msec = 0;
-	String text;
-	bool is_error = false;
-	bool is_warning = false;
-};
-
-static std::vector<McpLogLine> mcp_log_ring;
-static std::mutex mcp_log_mu;
-static const int MCP_LOG_RING_CAP = 500;
-
-void mcp_log_append(const String &p_text, bool p_error, bool p_warning) {
-	std::lock_guard<std::mutex> lk(mcp_log_mu);
-	mcp_log_ring.push_back(McpLogLine{ Time::get_singleton()->get_ticks_msec(), p_text, p_error, p_warning });
-	int overflow = (int)mcp_log_ring.size() - MCP_LOG_RING_CAP;
-	if (overflow > 0) {
-		mcp_log_ring.erase(mcp_log_ring.begin(), mcp_log_ring.begin() + overflow);
-	}
-}
-
-static ErrorHandlerList s_mcp_err_handler;
+// ----------------------------------------------------------------- Error hook
+// Installed by mcp_register_tools() (TOOLS builds only).
 
 static void _mcp_log_err_cb(void *p_ud, const char *p_func, const char *p_file, int p_line, const char *p_error, const char *p_verbose_error, bool p_editor_notify, ErrorHandlerType p_type) {
 	String text = vformat("[%s] %s (%s:%d)", p_type == ERR_HANDLER_WARNING ? "WARNING" : "ERROR", p_error, p_file, p_line);
