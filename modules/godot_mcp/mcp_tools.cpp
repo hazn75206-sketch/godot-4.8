@@ -13,7 +13,7 @@
 #include "core/os/time.h"
 #include "core/string/ustring.h"
 #include "core/io/json.h"
-#include "editor/editor_file_system.h"
+#include "editor/file_system/editor_file_system.h"
 #include "editor/editor_interface.h"
 #include "editor/settings/editor_settings.h"
 #include "mcp_server.h"
