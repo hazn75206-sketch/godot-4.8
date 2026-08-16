@@ -491,9 +491,12 @@ static Variant _tool_open_scene(const Dictionary &p_args) {
 	if (path.is_empty() || !path.ends_with(".tscn") || !FileAccess::exists(path)) {
 		return mcp_tool_ret_error(vformat("Scene tidak ditemukan: %s", path));
 	}
-	Error err = ei->open_scene_from_path(path);
-	if (err != OK) {
-		return mcp_tool_ret_error(vformat("Gagal membuka scene: %s (kode error: %d)", path, err));
+	// Buka scene.
+	ei->open_scene_from_path(path);
+	// Validasi: cek apakah scene benar-benar terbuka (root valid).
+	Node *root = ei->get_edited_scene_root();
+	if (!root) {
+		return mcp_tool_ret_error(vformat("Scene gagal dibuka (invalid/corrupt): %s", path));
 	}
 	return mcp_tool_ret_text(vformat("Scene dibuka: %s", path));
 }
