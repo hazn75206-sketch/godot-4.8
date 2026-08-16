@@ -3,6 +3,7 @@
 #include "editor/debugger/editor_debugger_node.h"
 #include "editor/debugger/script_editor_debugger.h"
 #include "core/config/engine.h"
+#include "scene/gui/tree.h"
 #include "core/config/project_settings.h"
 #include "core/crypto/crypto_core.h"
 #include "core/error/error_macros.h"
