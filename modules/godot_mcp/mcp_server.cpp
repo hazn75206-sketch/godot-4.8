@@ -218,6 +218,7 @@ void McpServer::start_server() {
 		tick_connected = true;
 	}
 	print_line(vformat("Godot MCP: server running on %s", get_mcp_url()));
+	mcp_log_append(vformat("Godot MCP: server running on %s", get_mcp_url()));
 #ifdef ANDROID_ENABLED
 	mcp_android_notification_on();
 #endif
@@ -240,6 +241,7 @@ void McpServer::stop_server() {
 	mcp_android_notification_off();
 #endif
 	print_verbose("Godot MCP: server stopped");
+	mcp_log_append("Godot MCP: server stopped");
 }
 
 void McpServer::register_editor_settings() {
@@ -337,6 +339,7 @@ Variant McpServer::_handle_request(const String &p_session_id, const Variant &p_
 		}
 		protocol_version = proto;
 		print_line(vformat("Godot MCP: client '%s %s' connected (session %s, protocol %s)", client_name, client_version, sid, proto));
+		mcp_log_append(vformat("Godot MCP: client '%s %s' connected (session %s, protocol %s)", client_name, client_version, sid, proto));
 		Dictionary caps;
 		caps["tools"] = Dictionary{ { "listChanged", true } };
 		caps["logging"] = Dictionary{};
@@ -406,6 +409,10 @@ Dictionary McpServer::handle_jsonrpc(const String &p_session_id, const Variant &
 		return Dictionary();
 	}
 	return v;
+}
+
+Variant McpServer::execute_tool(const String &p_name, const Dictionary &p_args) {
+	return _execute_tool(p_name, p_args);
 }
 
 Dictionary McpServer::_execute_tool(const String &p_name, const Dictionary &p_arguments) {

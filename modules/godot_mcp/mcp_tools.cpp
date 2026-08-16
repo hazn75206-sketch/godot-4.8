@@ -1,15 +1,19 @@
 #include "mcp_tools.h"
 
+#include "core/config/engine.h"
 #include "core/config/project_settings.h"
 #include "core/crypto/crypto_core.h"
+#include "core/error/error_macros.h"
 #include "core/input/input.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
 #include "core/io/resource_loader.h"
 #include "editor/editor_undo_redo_manager.h"
 #include "core/os/os.h"
+#include "core/os/time.h"
 #include "core/string/ustring.h"
 #include "core/io/json.h"
+#include "editor/editor_file_system.h"
 #include "editor/editor_interface.h"
 #include "editor/settings/editor_settings.h"
 #include "mcp_server.h"
@@ -19,6 +23,35 @@
 #include "scene/main/window.h"
 #include "core/input/input_event.h"
 #include "core/object/class_db.h"
+
+#include <mutex>
+#include <vector>
+
+// ----------------------------------------------------------------- Log ring
+// Small in-process ring buffer backing the `logs_read` tool. Fed by engine
+// errors/warnings (via ErrorHandlerList) and by the MCP server lifecycle.
+// Kept outside the TOOLS_ENABLED guard because mcp_server.cpp always
+// references mcp_log_append().
+
+struct McpLogLine {
+	uint64_t msec = 0;
+	String text;
+	bool is_error = false;
+	bool is_warning = false;
+};
+
+static std::vector<McpLogLine> mcp_log_ring;
+static std::mutex mcp_log_mu;
+static const int MCP_LOG_RING_CAP = 500;
+
+void mcp_log_append(const String &p_text, bool p_error, bool p_warning) {
+	std::lock_guard<std::mutex> lk(mcp_log_mu);
+	mcp_log_ring.push_back(McpLogLine{ Time::get_singleton()->get_ticks_msec(), p_text, p_error, p_warning });
+	int overflow = (int)mcp_log_ring.size() - MCP_LOG_RING_CAP;
+	if (overflow > 0) {
+		mcp_log_ring.erase(mcp_log_ring.begin(), mcp_log_ring.begin() + overflow);
+	}
+}
 
 #if defined(TOOLS_ENABLED)
 
@@ -33,6 +66,42 @@ Variant mcp_tool_ret_error(const String &p_text) {
 Variant mcp_tool_ret_json(const Variant &p_value) {
 	return Dictionary{ { "content", Array{ Dictionary{ { "type", "text" }, { "text", JSON::stringify(p_value) } } } }, { "isError", false } };
 }
+
+// ----------------------------------------------------------------- Log ring
+// Small in-process ring buffer backing the `logs_read` tool. Fed by engine
+// errors/warnings (via ErrorHandlerList) and by the MCP server lifecycle.
+
+struct McpLogLine {
+	uint64_t msec = 0;
+	String text;
+	bool is_error = false;
+	bool is_warning = false;
+};
+
+static std::vector<McpLogLine> mcp_log_ring;
+static std::mutex mcp_log_mu;
+static const int MCP_LOG_RING_CAP = 500;
+
+void mcp_log_append(const String &p_text, bool p_error, bool p_warning) {
+	std::lock_guard<std::mutex> lk(mcp_log_mu);
+	mcp_log_ring.push_back(McpLogLine{ Time::get_singleton()->get_ticks_msec(), p_text, p_error, p_warning });
+	int overflow = (int)mcp_log_ring.size() - MCP_LOG_RING_CAP;
+	if (overflow > 0) {
+		mcp_log_ring.erase(mcp_log_ring.begin(), mcp_log_ring.begin() + overflow);
+	}
+}
+
+static ErrorHandlerList s_mcp_err_handler;
+
+static void _mcp_log_err_cb(void *p_ud, const char *p_func, const char *p_file, int p_line, const char *p_error, const char *p_verbose_error, bool p_editor_notify, ErrorHandlerType p_type) {
+	String text = vformat("[%s] %s (%s:%d)", p_type == ERR_HANDLER_WARNING ? "WARNING" : "ERROR", p_error, p_file, p_line);
+	if (p_verbose_error && *p_verbose_error) {
+		text += "\n" + String(p_verbose_error);
+	}
+	mcp_log_append(text, p_type != ERR_HANDLER_WARNING, p_type == ERR_HANDLER_WARNING);
+}
+
+// ----------------------------------------------------------------- Helpers
 
 static Node *_scene_root() {
 	EditorInterface *ei = EditorInterface::get_singleton();
@@ -730,20 +799,279 @@ static Variant _tool_screenshot(const Dictionary &p_args) {
 	return ret;
 }
 
-static Variant _tool_server_info(const Dictionary &p_args) {
+// ----------------------------------------------------- godot-ai style tools
+
+static String _tool_op(const Dictionary &p_args, const String &p_default = String()) {
+	return p_args.get("op", p_default);
+}
+
+static String _unknown_op(const String &p_op, const String &p_valid) {
+	return vformat("Unknown op '%s'. Valid ops: %s", p_op, p_valid);
+}
+
+static Variant _tool_editor_state(const Dictionary &p_args) {
+	EditorInterface *ei = EditorInterface::get_singleton();
 	McpServer *s = McpServer::get_singleton();
-	Dictionary info;
-	info["running"] = s->is_running();
-	info["port"] = s->get_port();
-	info["bind"] = s->get_bind();
-	info["enabled"] = s->get_enabled();
-	info["token_set"] = !s->get_token().is_empty();
-	info["url"] = s->get_mcp_url();
-	Dictionary endpoints;
-	endpoints["streamable_http"] = "POST /mcp";
-	endpoints["sse"] = "GET /sse + POST /messages";
-	info["endpoints"] = endpoints;
-	return mcp_tool_ret_json(info);
+	Dictionary st;
+	String readiness = "ready";
+	if (ei) {
+		if (ei->get_resource_filesystem()->is_scanning()) {
+			readiness = "importing";
+		} else if (ei->is_playing_scene()) {
+			readiness = "playing";
+		} else if (ei->get_edited_scene_root() == nullptr) {
+			readiness = "no_scene";
+		}
+	}
+	st["readiness"] = readiness;
+	if (ei) {
+		st["playing"] = ei->is_playing_scene();
+		Node *root = ei->get_edited_scene_root();
+		if (root) {
+			st["current_scene"] = root->get_scene_file_path();
+		}
+	}
+	st["server_running"] = s ? s->is_running() : false;
+	st["url"] = s ? s->get_mcp_url() : String();
+	st["port"] = s ? s->get_port() : -1;
+	st["enabled"] = s ? s->get_enabled() : false;
+	st["godot_version"] = Engine::get_version_info().get("string", String());
+	return mcp_tool_ret_json(st);
+}
+
+static Variant _session_info() {
+	Dictionary d;
+	d["status"] = "active";
+	d["project_path"] = ProjectSettings::get_singleton() ? ProjectSettings::get_singleton()->globalize_path("res://") : String();
+	d["godot_version"] = Engine::get_version_info().get("string", String());
+	Node *root = _scene_root();
+	if (root) {
+		d["current_scene"] = root->get_scene_file_path();
+	}
+	return d;
+}
+
+static Variant _tool_session_activate(const Dictionary &p_args) {
+	return mcp_tool_ret_json(_session_info());
+}
+
+static Variant _tool_session_manage(const Dictionary &p_args) {
+	String op = _tool_op(p_args, "info");
+	if (op == "info" || op == "activate") {
+		return mcp_tool_ret_json(_session_info());
+	}
+	return mcp_tool_ret_error(_unknown_op(op, "info|activate"));
+}
+
+static Variant _tool_node_manage(const Dictionary &p_args) {
+	String op = _tool_op(p_args, "remove");
+	if (op == "remove") {
+		return _tool_remove_node(p_args);
+	}
+	if (op == "rename") {
+		return _tool_rename_node(p_args);
+	}
+	if (op == "reparent") {
+		return _tool_reparent_node(p_args);
+	}
+	return mcp_tool_ret_error(_unknown_op(op, "remove|rename|reparent"));
+}
+
+static Variant _tool_scene_manage(const Dictionary &p_args) {
+	String op = _tool_op(p_args, "create");
+	if (op == "create") {
+		return _tool_create_scene(p_args);
+	}
+	return mcp_tool_ret_error(_unknown_op(op, "create"));
+}
+
+static Variant _tool_filesystem_manage(const Dictionary &p_args) {
+	String op = _tool_op(p_args, "read");
+	if (op == "read") {
+		return _tool_read_file(p_args);
+	}
+	if (op == "write") {
+		return _tool_write_file(p_args);
+	}
+	if (op == "list") {
+		return _tool_list_assets(p_args);
+	}
+	return mcp_tool_ret_error(_unknown_op(op, "read|write|list"));
+}
+
+static Variant _tool_script_patch(const Dictionary &p_args) {
+	String path = p_args.get("path", String());
+	String find = p_args.get("find", String());
+	String replace = p_args.get("replace", String());
+	if (path.is_empty()) {
+		return mcp_tool_ret_error("Missing 'path'.");
+	}
+	if (find.is_empty()) {
+		return mcp_tool_ret_error("Missing 'find'.");
+	}
+	if (!FileAccess::exists(path)) {
+		return mcp_tool_ret_error(vformat("Script not found: %s", path));
+	}
+	Ref<FileAccess> f = FileAccess::open(path, FileAccess::READ);
+	if (f.is_null()) {
+		return mcp_tool_ret_error(vformat("Cannot open script: %s", path));
+	}
+	String content = f->get_as_text();
+	f->close();
+	bool all = p_args.get("all", false);
+	int count = 0;
+	int idx = 0;
+	while (true) {
+		int pos = content.find(find, idx);
+		if (pos == -1) {
+			break;
+		}
+		content = content.substr(0, pos) + replace + content.substr(pos + find.length());
+		idx = pos + replace.length();
+		count++;
+		if (!all) {
+			break;
+		}
+	}
+	if (count == 0) {
+		return mcp_tool_ret_error(vformat("Pattern not found in %s", path));
+	}
+	Ref<FileAccess> w = FileAccess::open(path, FileAccess::WRITE);
+	if (w.is_null()) {
+		return mcp_tool_ret_error(vformat("Cannot write script: %s", path));
+	}
+	w->store_string(content);
+	w->close();
+	return mcp_tool_ret_text(vformat("Patched %s (%d replacement%s)", path, count, count == 1 ? "" : "s"));
+}
+
+static Variant _tool_project_manage(const Dictionary &p_args) {
+	String op = _tool_op(p_args, "info");
+	if (op == "info") {
+		return _tool_project_info(p_args);
+	}
+	if (op == "get_setting") {
+		return _tool_get_project_setting(p_args);
+	}
+	if (op == "set_setting") {
+		return _tool_set_project_setting(p_args);
+	}
+	return mcp_tool_ret_error(_unknown_op(op, "info|get_setting|set_setting"));
+}
+
+static Variant _tool_project_run(const Dictionary &p_args) {
+	String op = _tool_op(p_args, "play");
+	if (op == "play" || op == "run") {
+		return _tool_run_main_scene(p_args);
+	}
+	if (op == "run_scene" || op == "run_custom") {
+		return _tool_run_custom_scene(p_args);
+	}
+	if (op == "stop" || op == "quit") {
+		return _tool_stop_game(p_args);
+	}
+	if (op == "state") {
+		return _tool_game_state(p_args);
+	}
+	return mcp_tool_ret_error(_unknown_op(op, "play|run_scene|stop|state"));
+}
+
+static Variant _tool_game_manage(const Dictionary &p_args) {
+	String op = _tool_op(p_args, "state");
+	if (op == "state") {
+		return _tool_game_state(p_args);
+	}
+	if (op == "send_action") {
+		Dictionary a = p_args;
+		a["kind"] = "action";
+		return _tool_send_input(a);
+	}
+	if (op == "send_key") {
+		Dictionary a = p_args;
+		a["kind"] = "key";
+		return _tool_send_input(a);
+	}
+	if (op == "send_mouse") {
+		Dictionary a = p_args;
+		a["kind"] = "mouse_button";
+		return _tool_send_input(a);
+	}
+	if (op == "input") {
+		return _tool_send_input(p_args);
+	}
+	return mcp_tool_ret_error(_unknown_op(op, "state|send_action|send_key|send_mouse|input"));
+}
+
+static Variant _tool_batch_execute(const Dictionary &p_args) {
+	McpServer *s = McpServer::get_singleton();
+	Array ops = p_args.get("operations", Array());
+	if (ops.is_empty()) {
+		return mcp_tool_ret_error("Missing 'operations' (array of {'tool': name, 'arguments': {}}).");
+	}
+	bool stop_on_error = p_args.get("stop_on_error", true);
+	Array results;
+	for (int i = 0; i < ops.size(); i++) {
+		Variant v = ops[i];
+		if (v.get_type() != Variant::DICTIONARY) {
+			results.append(mcp_tool_ret_error(vformat("operations[%d] is not an object", i)));
+			if (stop_on_error) {
+				break;
+			}
+			continue;
+		}
+		Dictionary op = v;
+		String tool = op.get("tool", String());
+		if (tool.is_empty()) {
+			results.append(mcp_tool_ret_error(vformat("operations[%d] missing 'tool'", i)));
+			if (stop_on_error) {
+				break;
+			}
+			continue;
+		}
+		Dictionary args = op.get("arguments", Dictionary());
+		Dictionary res = s->execute_tool(tool, args);
+		results.append(res);
+		if (stop_on_error && bool(res.get("isError", false))) {
+			break;
+		}
+	}
+	Dictionary out;
+	Dictionary content_item;
+	content_item["type"] = "text";
+	content_item["text"] = JSON::stringify(results);
+	out["content"] = Array{ content_item };
+	out["isError"] = false;
+	out["results"] = results;
+	return out;
+}
+
+static Variant _tool_logs_read(const Dictionary &p_args) {
+	String level = p_args.get("level", "all");
+	int requested = (int)p_args.get("limit", 200);
+	int limit = requested > 1 ? requested : 1;
+	bool want_error = level == "all" || level == "error";
+	bool want_warning = level == "all" || level == "warning";
+	bool want_info = level == "all" || level == "info";
+	Array lines;
+	std::lock_guard<std::mutex> lk(mcp_log_mu);
+	int total = (int)mcp_log_ring.size();
+	int start = 0;
+	if (total > limit) {
+		start = total - limit;
+	}
+	for (int i = start; i < total; i++) {
+		const McpLogLine &l = mcp_log_ring[i];
+		bool keep = l.is_error ? want_error : (l.is_warning ? want_warning : want_info);
+		if (!keep) {
+			continue;
+		}
+		Dictionary d;
+		d["level"] = l.is_error ? "error" : (l.is_warning ? "warning" : "info");
+		d["text"] = l.text;
+		d["msec"] = (double)l.msec;
+		lines.append(d);
+	}
+	return mcp_tool_ret_json(lines);
 }
 
 static Dictionary _schema(bool p_required, const Vector<String> &p_props) {
@@ -776,32 +1104,77 @@ static Dictionary _schema_any(const Vector<String> &p_optional) {
 }
 
 void mcp_register_tools(McpServer *p_server) {
-	p_server->register_tool("project_info", "Get information about the currently open project (name, main scene, path).", _schema_any(Vector<String>()), _tool_project_info);
-	p_server->register_tool("list_assets", "Recursively list asset files under res://. Args: pattern (wildcard), recursive (bool).", _schema_any(Vector<String>{ "pattern", "recursive" }), _tool_list_assets);
-	p_server->register_tool("read_file", "Read a file as text. Args: path, json (bool, parse as JSON).", _schema(true, Vector<String>{ "path" }), _tool_read_file);
-	p_server->register_tool("write_file", "Write text content to a file. Args: path, content.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_file);
-	p_server->register_tool("get_project_setting", "Read a project setting by name. Args: name.", _schema(true, Vector<String>{ "name" }), _tool_get_project_setting);
-	p_server->register_tool("set_project_setting", "Set a project setting by name. Args: name, value, save (bool).", _schema(true, Vector<String>{ "name" }), _tool_set_project_setting);
-	p_server->register_tool("get_scene_tree", "Get the current scene tree as JSON (nodes, types, paths, key properties).", _schema_any(Vector<String>()), _tool_get_scene_tree);
-	p_server->register_tool("open_scene", "Open a .tscn scene in the editor. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_open_scene);
-	p_server->register_tool("save_scene", "Save the current scene. Args: path (optional, save-as).", _schema_any(Vector<String>{ "path" }), _tool_save_scene);
-	p_server->register_tool("create_scene", "Create a new .tscn scene and open it. Args: path, root_class, root_name.", _schema(true, Vector<String>{ "path" }), _tool_create_scene);
-	p_server->register_tool("add_node", "Add a node to the scene. Args: class, name, parent (relative path).", _schema(true, Vector<String>{ "class" }), _tool_add_node);
-	p_server->register_tool("remove_node", "Remove a node from the scene. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_remove_node);
-	p_server->register_tool("rename_node", "Rename a node. Args: path, name.", _schema(true, Vector<String>{ "path", "name" }), _tool_rename_node);
-	p_server->register_tool("get_node_property", "Read a node property. Args: path, property.", _schema(true, Vector<String>{ "path", "property" }), _tool_get_node_property);
-	p_server->register_tool("set_node_property", "Set a node property (undoable). Args: path, property, value.", _schema(true, Vector<String>{ "path", "property" }), _tool_set_node_property);
-	p_server->register_tool("reparent_node", "Move a node under a new parent. Args: path, new_parent.", _schema(true, Vector<String>{ "path", "new_parent" }), _tool_reparent_node);
-	p_server->register_tool("read_script", "Read a GDScript file. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_read_script);
-	p_server->register_tool("write_script", "Write a GDScript file. Args: path, content.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_script);
-	p_server->register_tool("attach_script", "Attach a script to a node (creates it if missing). Args: path (node), script.", _schema(true, Vector<String>{ "path", "script" }), _tool_attach_script);
-	p_server->register_tool("run_main_scene", "Run the project's main scene (play).", _schema_any(Vector<String>()), _tool_run_main_scene);
-	p_server->register_tool("run_custom_scene", "Run a specific scene. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_run_custom_scene);
-	p_server->register_tool("stop_game", "Stop the running game.", _schema_any(Vector<String>()), _tool_stop_game);
-	p_server->register_tool("game_state", "Get play state (running?, current scene).", _schema_any(Vector<String>()), _tool_game_state);
-	p_server->register_tool("send_input", "Send input to the running game. Args: kind (action|key|mouse_button), action/key/button, pressed, position.", _schema(false, Vector<String>{ "kind", "action", "key", "button", "pressed", "position" }), _tool_send_input);
-	p_server->register_tool("screenshot", "Capture a screenshot of the editor viewport (or the game when running). Returns a PNG image. Args: source (editor|game|2d).", _schema_any(Vector<String>{ "source" }), _tool_screenshot);
-	p_server->register_tool("server_info", "Get MCP server status and endpoints.", _schema_any(Vector<String>()), _tool_server_info);
+	// Capture engine errors/warnings for logs_read.
+	static bool log_hooks_installed = false;
+	if (!log_hooks_installed) {
+		log_hooks_installed = true;
+		s_mcp_err_handler.errfunc = _mcp_log_err_cb;
+		add_error_handler(&s_mcp_err_handler);
+	}
+
+	// godot-ai compatible core tools.
+	p_server->register_tool("editor_state", "Get editor state: readiness (importing|playing|no_scene|ready), playing, current scene, server url.", _schema_any(Vector<String>()), _tool_editor_state);
+	p_server->register_tool("server_info", "Alias of editor_state.", _schema_any(Vector<String>()), _tool_editor_state);
+	p_server->register_tool("session_activate", "Activate/report the current editor session. Args: none.", _schema_any(Vector<String>()), _tool_session_activate);
+	p_server->register_tool("session_manage", "Session info. Args: op (info|activate).", _schema_any(Vector<String>{ "op" }), _tool_session_manage);
+
+	// Scene tools.
+	p_server->register_tool("scene_get_hierarchy", "Get the current scene tree as JSON (nodes, types, paths, key properties). Args: none.", _schema_any(Vector<String>()), _tool_get_scene_tree);
+	p_server->register_tool("get_scene_tree", "Alias of scene_get_hierarchy.", _schema_any(Vector<String>()), _tool_get_scene_tree);
+	p_server->register_tool("scene_open", "Open a .tscn scene in the editor. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_open_scene);
+	p_server->register_tool("open_scene", "Alias of scene_open.", _schema(true, Vector<String>{ "path" }), _tool_open_scene);
+	p_server->register_tool("scene_save", "Save the current scene. Args: path (optional, save-as).", _schema_any(Vector<String>{ "path" }), _tool_save_scene);
+	p_server->register_tool("save_scene", "Alias of scene_save.", _schema_any(Vector<String>{ "path" }), _tool_save_scene);
+	p_server->register_tool("scene_manage", "Scene operations. Args: op (create), path, root_class, root_name.", _schema(true, Vector<String>{ "op" }), _tool_scene_manage);
+	p_server->register_tool("create_scene", "Alias of scene_manage op=create. Args: path, root_class, root_name.", _schema(true, Vector<String>{ "path" }), _tool_create_scene);
+
+	// Node tools.
+	p_server->register_tool("node_create", "Add a node to the scene. Args: class, name, parent (relative path).", _schema(true, Vector<String>{ "class" }), _tool_add_node);
+	p_server->register_tool("add_node", "Alias of node_create.", _schema(true, Vector<String>{ "class" }), _tool_add_node);
+	p_server->register_tool("node_manage", "Node operations. Args: op (remove|rename|reparent), path, name, new_parent.", _schema(true, Vector<String>{ "op", "path" }), _tool_node_manage);
+	p_server->register_tool("remove_node", "Alias of node_manage op=remove. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_remove_node);
+	p_server->register_tool("rename_node", "Alias of node_manage op=rename. Args: path, name.", _schema(true, Vector<String>{ "path", "name" }), _tool_rename_node);
+	p_server->register_tool("reparent_node", "Alias of node_manage op=reparent. Args: path, new_parent.", _schema(true, Vector<String>{ "path", "new_parent" }), _tool_reparent_node);
+	p_server->register_tool("node_get_properties", "Read a node property. Args: path, property.", _schema(true, Vector<String>{ "path", "property" }), _tool_get_node_property);
+	p_server->register_tool("get_node_property", "Alias of node_get_properties.", _schema(true, Vector<String>{ "path", "property" }), _tool_get_node_property);
+	p_server->register_tool("node_set_property", "Set a node property (undoable). Args: path, property, value.", _schema(true, Vector<String>{ "path", "property" }), _tool_set_node_property);
+	p_server->register_tool("set_node_property", "Alias of node_set_property.", _schema(true, Vector<String>{ "path", "property" }), _tool_set_node_property);
+
+	// Script tools.
+	p_server->register_tool("script_create", "Write a GDScript file. Args: path, content.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_script);
+	p_server->register_tool("write_script", "Alias of script_create.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_script);
+	p_server->register_tool("script_attach", "Attach a script to a node (creates it if missing). Args: path (node), script (path).", _schema(true, Vector<String>{ "path", "script" }), _tool_attach_script);
+	p_server->register_tool("attach_script", "Alias of script_attach.", _schema(true, Vector<String>{ "path", "script" }), _tool_attach_script);
+	p_server->register_tool("script_patch", "Apply a find/replace patch to a script. Args: path, find, replace, all (bool, replace every occurrence).", _schema(true, Vector<String>{ "path", "find", "replace" }), _tool_script_patch);
+	p_server->register_tool("script_manage", "Script operations. Args: op (read), path.", _schema(true, Vector<String>{ "op", "path" }), _tool_read_script);
+	p_server->register_tool("read_script", "Alias of script_manage op=read. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_read_script);
+
+	// Filesystem tools.
+	p_server->register_tool("filesystem_manage", "Filesystem operations. Args: op (read|write|list), path, content, pattern, recursive.", _schema(true, Vector<String>{ "op" }), _tool_filesystem_manage);
+	p_server->register_tool("read_file", "Alias of filesystem_manage op=read. Args: path, json.", _schema(true, Vector<String>{ "path" }), _tool_read_file);
+	p_server->register_tool("write_file", "Alias of filesystem_manage op=write. Args: path, content.", _schema(true, Vector<String>{ "path", "content" }), _tool_write_file);
+	p_server->register_tool("list_assets", "Alias of filesystem_manage op=list. Args: pattern, recursive.", _schema_any(Vector<String>{ "pattern", "recursive" }), _tool_list_assets);
+
+	// Project & run tools.
+	p_server->register_tool("project_manage", "Project operations. Args: op (info|get_setting|set_setting), name, value, save.", _schema(true, Vector<String>{ "op" }), _tool_project_manage);
+	p_server->register_tool("project_info", "Alias of project_manage op=info.", _schema_any(Vector<String>()), _tool_project_info);
+	p_server->register_tool("get_project_setting", "Alias of project_manage op=get_setting. Args: name.", _schema(true, Vector<String>{ "name" }), _tool_get_project_setting);
+	p_server->register_tool("set_project_setting", "Alias of project_manage op=set_setting. Args: name, value, save.", _schema(true, Vector<String>{ "name" }), _tool_set_project_setting);
+	p_server->register_tool("project_run", "Run/stop the project. Args: op (play|run_scene|stop|state), path.", _schema(true, Vector<String>{ "op" }), _tool_project_run);
+	p_server->register_tool("run_main_scene", "Alias of project_run op=play.", _schema_any(Vector<String>()), _tool_run_main_scene);
+	p_server->register_tool("run_custom_scene", "Alias of project_run op=run_scene. Args: path.", _schema(true, Vector<String>{ "path" }), _tool_run_custom_scene);
+	p_server->register_tool("stop_game", "Alias of project_run op=stop.", _schema_any(Vector<String>()), _tool_stop_game);
+	p_server->register_tool("game_state", "Alias of project_run op=state.", _schema_any(Vector<String>()), _tool_game_state);
+
+	// Game input.
+	p_server->register_tool("game_manage", "Game operations. Args: op (state|send_action|send_key|send_mouse|input), action/key/button, pressed, position, kind.", _schema(true, Vector<String>{ "op" }), _tool_game_manage);
+	p_server->register_tool("send_input", "Alias of game_manage op=input. Args: kind (action|key|mouse_button), action/key/button, pressed, position.", _schema(false, Vector<String>{ "kind", "action", "key", "button", "pressed", "position" }), _tool_send_input);
+
+	// Editor utilities.
+	p_server->register_tool("editor_screenshot", "Capture a screenshot of the editor viewport (or the game when running). Returns a PNG image. Args: source (editor|game|2d).", _schema_any(Vector<String>{ "source" }), _tool_screenshot);
+	p_server->register_tool("screenshot", "Alias of editor_screenshot.", _schema_any(Vector<String>{ "source" }), _tool_screenshot);
+	p_server->register_tool("batch_execute", "Run several tools in one round-trip. Args: operations (array of {tool: name, arguments: {}}), stop_on_error (bool). Returns an array of results.", _schema_any(Vector<String>{ "stop_on_error" }), _tool_batch_execute);
+	p_server->register_tool("logs_read", "Read recent editor errors/warnings/MCP log lines. Args: level (all|error|warning|info), limit (int).", _schema_any(Vector<String>{ "level", "limit" }), _tool_logs_read);
 }
 
 #endif // TOOLS_ENABLED

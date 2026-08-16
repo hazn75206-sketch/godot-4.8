@@ -65,6 +65,7 @@ public:
 	void broadcast_notification(const String &p_method, const Dictionary &p_params);
 
 	Variant run_tool(Variant (*p_handler)(const Dictionary &p_args), const Dictionary &p_arguments, int p_timeout_ms = 20000);
+	Variant execute_tool(const String &p_name, const Dictionary &p_args);
 
 	void register_tool(const String &p_name, const String &p_description, const Dictionary &p_schema, Variant (*p_handler)(const Dictionary &p_args));
 
