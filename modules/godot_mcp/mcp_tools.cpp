@@ -2,6 +2,7 @@
 
 #include "editor/debugger/editor_debugger_node.h"
 #include "editor/debugger/script_editor_debugger.h"
+#include "editor/editor_node.h"
 #include "core/config/engine.h"
 #include "scene/gui/tree.h"
 #include "core/config/project_settings.h"
@@ -1103,6 +1104,17 @@ static Variant _tool_debugger_errors(const Dictionary &p_args) {
 	return mcp_tool_ret_json(out);
 }
 
+static Variant _tool_refresh(const Dictionary &p_args) {
+	// Rescan the project filesystem and reload any scenes / project settings
+	// that changed on disk, without restarting the editor.
+	EditorNode *en = EditorNode::get_singleton();
+	if (!en) {
+		return Dictionary{ { "ok", false }, { "message", "Editor not ready" } };
+	}
+	en->refresh_external_changes();
+	return Dictionary{ { "ok", true }, { "message", "Project refreshed: filesystem rescan scheduled; scenes and project settings reloaded from disk." } };
+}
+
 static Dictionary _schema(bool p_required, const Vector<String> &p_props) {
 	Dictionary props;
 	for (const String &p : p_props) {
@@ -1205,6 +1217,7 @@ void mcp_register_tools(McpServer *p_server) {
 	p_server->register_tool("batch_execute", "Run several tools in one round-trip. Args: operations (array of {tool: name, arguments: {}}), stop_on_error (bool). Returns an array of results.", _schema_any(Vector<String>{ "stop_on_error" }), _tool_batch_execute);
 	p_server->register_tool("logs_read", "Read recent editor errors/warnings/MCP log lines. Args: level (all|error|warning|info), limit (int).", _schema_any(Vector<String>{ "level", "limit" }), _tool_logs_read);
 	p_server->register_tool("debugger_errors", "Read errors/warnings currently shown in the editor Debugger panel (from a running game).", _schema_any(Vector<String>()), _tool_debugger_errors);
+	p_server->register_tool("refresh", "Rescan the project filesystem and reload any scenes/project settings that changed on disk, without restarting the editor.", _schema_any(Vector<String>()), _tool_refresh);
 }
 
 #endif // TOOLS_ENABLED

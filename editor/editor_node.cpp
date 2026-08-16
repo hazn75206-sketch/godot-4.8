@@ -1633,11 +1633,30 @@ void EditorNode::_scan_external_changes() {
 	}
 
 	if (need_reload) {
+		if (bool(EditorSettings::get_singleton()->get_setting("mcp/auto_reload_external"))) {
+			refresh_external_changes();
+			return;
+		}
 		callable_mp((Window *)disk_changed, &Window::popup_centered_ratio).call_deferred(0.3);
 	}
 }
 
-void EditorNode::_resave_externally_modified_scenes(String p_str) {
+void EditorNode::refresh_external_changes() {
+	EditorFileSystem::get_singleton()->scan_changes();
+	_reload_modified_scenes();
+	_reload_project_settings();
+	disk_changed->hide();
+}
+
+void EditorNode::_resave_externally_modified_scenes(String p_action) {
+	if (p_action == "always_reload") {
+		EditorSettings::get_singleton()->set_setting("mcp/auto_reload_external", true);
+		refresh_external_changes();
+		return;
+	}
+	if (p_action != "resave") {
+		return;
+	}
 	for (const String &scene_path : disk_changed_scenes) {
 		_save_scene(scene_path);
 	}
@@ -9498,6 +9517,7 @@ EditorNode::EditorNode() {
 		disk_changed->set_ok_button_text(TTR("Reload from disk"));
 
 		disk_changed->add_button(TTR("Ignore external changes"), !DisplayServer::get_singleton()->get_swap_cancel_ok(), "resave");
+		disk_changed->add_button(TTR("Always reload"), false, "always_reload");
 		disk_changed->connect("custom_action", callable_mp(this, &EditorNode::_resave_externally_modified_scenes));
 	}
 
