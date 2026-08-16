@@ -307,6 +307,7 @@ static Variant _tool_write_file(const Dictionary &p_args) {
 	}
 	f->store_string(content);
 	f->close();
+	_mcp_refresh_editor();
 	return mcp_tool_ret_text(vformat("Berhasil menulis %d byte ke %s", content.utf8().length(), path));
 }
 
@@ -413,6 +414,7 @@ static Variant _tool_create_scene(const Dictionary &p_args) {
 	if (ei) {
 		ei->open_scene_from_path(path);
 	}
+	_mcp_refresh_editor();
 	return mcp_tool_ret_text(vformat("Scene dibuat: %s", path));
 }
 
@@ -585,6 +587,7 @@ static Variant _tool_write_script(const Dictionary &p_args) {
 	}
 	f->store_string(content);
 	f->close();
+	_mcp_refresh_editor();
 	return mcp_tool_ret_text(vformat("Script ditulis: %s (%d byte)", path, content.utf8().length()));
 }
 
@@ -615,6 +618,7 @@ static Variant _tool_attach_script(const Dictionary &p_args) {
 	ur->add_do_method(node, "set_script", script);
 	ur->add_undo_method(node, "set_script", (Object *)nullptr);
 	ur->commit_action();
+	_mcp_refresh_editor();
 	return mcp_tool_ret_text(vformat("Script %s dilampirkan ke %s", script_path, node->get_path()));
 }
 
@@ -925,6 +929,7 @@ static Variant _tool_script_patch(const Dictionary &p_args) {
 	}
 	w->store_string(content);
 	w->close();
+	_mcp_refresh_editor();
 	return mcp_tool_ret_text(vformat("Ditambal %s (%d penggantian)", path, count));
 }
 
@@ -1109,10 +1114,20 @@ static Variant _tool_refresh(const Dictionary &p_args) {
 	// that changed on disk, without restarting the editor.
 	EditorNode *en = EditorNode::get_singleton();
 	if (!en) {
-		return Dictionary{ { "ok", false }, { "message", "Editor not ready" } };
+		return Dictionary{ { "ok", false }, { "message", "Editor tidak siap" } };
 	}
 	en->refresh_external_changes();
-	return Dictionary{ { "ok", true }, { "message", "Project refreshed: filesystem rescan scheduled; scenes and project settings reloaded from disk." } };
+	return Dictionary{ { "ok", true }, { "message", "Proyek disegarkan: pemindaian filesystem dijadwalkan; scene dan pengaturan proyek dimuat ulang dari disk." } };
+}
+
+// Ask the editor to rescan/reload right after MCP changed files on disk, so
+// new/modified scenes, scripts and assets show up immediately (no game run
+// or app focus event needed, which never happen on the Android editor).
+static void _mcp_refresh_editor() {
+	EditorNode *en = EditorNode::get_singleton();
+	if (en) {
+		en->refresh_external_changes();
+	}
 }
 
 static Dictionary _schema(bool p_required, const Vector<String> &p_props) {

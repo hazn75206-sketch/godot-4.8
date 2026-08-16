@@ -1644,8 +1644,20 @@ void EditorNode::_scan_external_changes() {
 void EditorNode::refresh_external_changes() {
 	EditorFileSystem::get_singleton()->scan_changes();
 	_reload_modified_scenes();
-	_reload_project_settings();
+	ProjectSettings *ps = ProjectSettings::get_singleton();
+	const String project_settings_path = ps->get_resource_path().path_join("project.godot");
+	if (FileAccess::get_modified_time(project_settings_path) > ps->get_last_saved_time()) {
+		_reload_project_settings();
+	}
 	disk_changed->hide();
+}
+
+void EditorNode::poll_external_changes() {
+	EditorFileSystem::get_singleton()->scan_changes();
+	if (disk_changed->is_visible()) {
+		return;
+	}
+	_scan_external_changes();
 }
 
 void EditorNode::_resave_externally_modified_scenes(String p_action) {

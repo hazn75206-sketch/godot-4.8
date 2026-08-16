@@ -11,6 +11,8 @@
 #include "core/io/json.h"
 #include "core/object/property_info.h"
 #include "editor/editor_interface.h"
+#include "editor/editor_node.h"
+#include "editor/file_system/editor_file_system.h"
 #include "editor/settings/editor_settings.h"
 #include "mcp_android.h"
 #include "mcp_http.h"
@@ -527,6 +529,29 @@ void McpServer::_tick() {
 			return;
 		}
 	}
+#ifdef TOOLS_ENABLED
+	// Poll the filesystem so files changed by the MCP client (scenes, scripts,
+	// project.godot, new assets) show up in the editor right away, without
+	// waiting for a game run or an application focus event. On Android the
+	// window never changes focus, so the engine's focus-based scan never ran.
+	// Tool handlers already trigger an immediate reload after writing files;
+	// this slower poll only catches changes made outside MCP.
+	if (now - last_fs_poll_msec >= 2000) {
+		last_fs_poll_msec = now;
+		EditorFileSystem *efs = EditorFileSystem::get_singleton();
+		if (efs) {
+			efs->scan_changes();
+		}
+		EditorNode *en = EditorNode::get_singleton();
+		if (en && !EditorInterface::get_singleton()->is_playing_scene()) {
+			if (EditorSettings::get_singleton()->get_setting("mcp/auto_reload_external")) {
+				en->refresh_external_changes();
+			} else {
+				en->poll_external_changes();
+			}
+		}
+	}
+#endif
 	_emit_events();
 }
 
@@ -550,11 +575,11 @@ Variant McpServer::run_tool(Variant (*p_handler)(const Dictionary &p_args), cons
 	if (!task.done) {
 		task.done = true;
 		ERR_PRINT("Godot MCP: tool kehabisan waktu di thread utama");
-		return Dictionary{ { "content", Array{ Dictionary{ { "type", "text" }, { "text", "Main thread timeout" } } } }, { "isError", true } };
+		return Dictionary{ { "content", Array{ Dictionary{ { "type", "text" }, { "text", "Thread utama kehabisan waktu (timeout)" } } } }, { "isError", true } };
 	}
 	return task.result;
 #else
-	String err = "Main thread execution unavailable.";
+	String err = "Eksekusi thread utama tidak tersedia.";
 	Dictionary econtent;
 	econtent["type"] = "text";
 	econtent["text"] = err;
