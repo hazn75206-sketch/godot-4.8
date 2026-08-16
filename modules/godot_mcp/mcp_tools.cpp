@@ -742,10 +742,10 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 		}
 		if (d.has("expand_margin_left") || d.has("expand_margin_top") ||
 			d.has("expand_margin_right") || d.has("expand_margin_bottom")) {
-			float l = d.has("expand_margin_left") ? d["expand_margin_left"] : 0.0f;
-			float t = d.has("expand_margin_top") ? d["expand_margin_top"] : 0.0f;
-			float r = d.has("expand_margin_right") ? d["expand_margin_right"] : 0.0f;
-			float b = d.has("expand_margin_bottom") ? d["expand_margin_bottom"] : 0.0f;
+			float l = d.has("expand_margin_left") ? (float)d["expand_margin_left"] : 0.0f;
+			float t = d.has("expand_margin_top") ? (float)d["expand_margin_top"] : 0.0f;
+			float r = d.has("expand_margin_right") ? (float)d["expand_margin_right"] : 0.0f;
+			float b = d.has("expand_margin_bottom") ? (float)d["expand_margin_bottom"] : 0.0f;
 			sb->set_expand_margin_individual(l, t, r, b);
 		}
 	// Shadow
