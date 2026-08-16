@@ -313,6 +313,7 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 			String resp = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nConnection: keep-alive\r\n" + proto_hdr + "\r\n";
 			CharString cs = resp.utf8();
 			p_conn->peer->put_data((const uint8_t *)cs.get_data(), cs.length());
+			p_conn->request_ready = false;
 			p_conn->last_activity = Time::get_singleton()->get_ticks_msec();
 			return;
 		}
