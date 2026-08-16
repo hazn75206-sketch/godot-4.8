@@ -713,16 +713,16 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 			sb->set_border_width_all(d["border_width"]);
 		}
 		if (d.has("border_width_left")) {
-			sb->set_border_width(Side::LEFT, d["border_width_left"]);
+			sb->set_border_width(SIDE_LEFT, d["border_width_left"]);
 		}
 		if (d.has("border_width_right")) {
-			sb->set_border_width(Side::RIGHT, d["border_width_right"]);
+			sb->set_border_width(SIDE_RIGHT, d["border_width_right"]);
 		}
 		if (d.has("border_width_top")) {
-			sb->set_border_width(Side::TOP, d["border_width_top"]);
+			sb->set_border_width(SIDE_TOP, d["border_width_top"]);
 		}
 		if (d.has("border_width_bottom")) {
-			sb->set_border_width(Side::BOTTOM, d["border_width_bottom"]);
+			sb->set_border_width(SIDE_BOTTOM, d["border_width_bottom"]);
 		}
 		// Corner radii
 		if (d.has("corner_radius")) {
