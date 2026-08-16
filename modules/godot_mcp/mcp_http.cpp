@@ -3,6 +3,7 @@
 #include "core/os/time.h"
 #include "core/io/json.h"
 #include "mcp_server.h"
+#include "mcp_tools.h"
 
 #include <chrono>
 #include <thread>
@@ -318,13 +319,19 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 			p_conn->last_activity = Time::get_singleton()->get_ticks_msec();
 
 			// Send the initial SSE event so Streamable HTTP clients (mcp_dart,
-			// RikkaHub, etc.) know the stream is alive and where to POST.
+			// RikkaHub, etc.) know the stream is alive and where to POST. The
+			// endpoint must be an absolute URL - mcp_dart resolves it with
+			// Uri.parse, which fails on a relative path like /mcp.
 			if (sid.is_empty()) {
 				// New connection — tell the client the POST endpoint.
-				_write_sse(p_conn, "event: endpoint\ndata: /mcp\n\n");
+				_write_sse(p_conn, "event: endpoint\ndata: " + owner->get_mcp_url() + "\n\n");
+				print_line(vformat("Godot MCP: SSE stream dibuka (GET %s, belum ada session)", p_conn->path));
+				mcp_log_append(vformat("Godot MCP: SSE stream dibuka (GET %s, belum ada session)", p_conn->path));
 			} else {
 				// Existing session — signal the stream is ready.
 				_write_sse(p_conn, "event: open\n\n");
+				print_line(vformat("Godot MCP: SSE stream dibuka (GET %s, session %s)", p_conn->path, sid));
+				mcp_log_append(vformat("Godot MCP: SSE stream dibuka (GET %s, session %s)", p_conn->path, sid));
 			}
 			return;
 		}
@@ -366,6 +373,12 @@ void MCPHttpServer::_handle_http(Connection *p_conn) {
 	String sid = p_conn->headers.get("mcp-session-id", String());
 	bool broadcast = false;
 	String created;
+	{
+		Variant method_v = ((const Dictionary &)json_variant).get("method", Variant());
+		if (method_v.get_type() == Variant::STRING) {
+			print_line(vformat("Godot MCP: permintaan %s (session %s)", String(method_v), sid.is_empty() ? "-" : sid));
+		}
+	}
 	Dictionary response = owner->handle_jsonrpc(sid, json_variant, broadcast, created);
 	if (!created.is_empty()) {
 		p_conn->session_id = created;
