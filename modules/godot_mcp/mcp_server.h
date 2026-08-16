@@ -52,7 +52,6 @@ public:
 	bool is_running() const { return running; }
 	int get_port() const;
 	String get_bind() const;
-	String get_token() const;
 	bool get_enabled() const;
 	int get_transport() const;
 	int get_bind_mode() const;
@@ -116,7 +115,6 @@ private:
 	int cfg_port = 8766;
 	int cfg_bind_mode = 0;
 	int cfg_transport = 0;
-	String cfg_token;
 };
 
 #endif // GODOT_MCP_SERVER_H

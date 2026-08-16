@@ -262,16 +262,8 @@ bool MCPHttpServer::_read_request(Connection *p_conn) {
 }
 
 bool MCPHttpServer::_check_auth(Connection *p_conn) {
-	String token = owner->get_token();
-	if (token.is_empty()) {
-		return true;
-	}
-	String auth = p_conn->headers.get("authorization", String());
-	String prefix = "Bearer ";
-	if (auth.begins_with(prefix) && auth.substr(prefix.length()).strip_edges() == token) {
-		return true;
-	}
-	return false;
+	// Token auth was removed; the MCP endpoint is open on the configured bind address.
+	return true;
 }
 
 void MCPHttpServer::_handle_http(Connection *p_conn) {

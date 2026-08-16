@@ -133,17 +133,6 @@ String McpServer::get_local_ip() const {
 	return "127.0.0.1";
 }
 
-String McpServer::get_token() const {
-	EditorSettings *es = EditorSettings::get_singleton();
-	if (!es) {
-		return String();
-	}
-		if (!es->has_setting("mcp/token")) {
-		return String();
-	}
-	return es->get_setting("mcp/token");
-}
-
 void McpServer::set_enabled(bool p_enabled) {
 	EditorSettings *es = EditorSettings::get_singleton();
 	if (!es) {
@@ -198,7 +187,6 @@ void McpServer::start_server() {
 	cfg_port = get_port();
 	cfg_bind_mode = get_bind_mode();
 	cfg_transport = get_transport();
-	cfg_token = get_token();
 #ifdef TOOLS_ENABLED
 	_register_builtin_tools();
 #endif
@@ -261,9 +249,6 @@ void McpServer::register_editor_settings() {
 	if (!es->has_setting("mcp/bind_mode")) {
 		es->set_setting("mcp/bind_mode", 0);
 	}
-	if (!es->has_setting("mcp/token")) {
-		es->set_setting("mcp/token", String());
-	}
 	// The Android editor fork lacks GDK window placement settings; define them
 	// so running the project stops spamming ERR_PRINT "does not exist" errors.
 	if (!es->has_setting("run/window_placement/screen")) {
@@ -276,7 +261,6 @@ void McpServer::register_editor_settings() {
 	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/transport", PROPERTY_HINT_ENUM, "Both (Streamable HTTP + SSE),Streamable HTTP only,SSE only"));
 	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/bind_mode", PROPERTY_HINT_ENUM, "LAN (accessible from other devices),Localhost only"));
 	es->add_property_hint(PropertyInfo(Variant::INT, "mcp/port", PROPERTY_HINT_RANGE, "1,65535,1"));
-	es->add_property_hint(PropertyInfo(Variant::STRING, "mcp/token", PROPERTY_HINT_PASSWORD, ""));
 	// The MCP server never auto-starts on launch. Keep the poll connected so
 	// enabling/disabling the setting takes effect immediately without a restart.
 	McpServer *s = McpServer::get_singleton();
@@ -301,9 +285,6 @@ void McpServer::_update_from_settings() {
 		}
 		if (!es->has_setting("mcp/bind_mode")) {
 			es->set_setting("mcp/bind_mode", 0);
-		}
-		if (!es->has_setting("mcp/token")) {
-			es->set_setting("mcp/token", String());
 		}
 	}
 }
@@ -537,8 +518,7 @@ void McpServer::_tick() {
 		int p = get_port();
 		int b = get_bind_mode();
 		int t = get_transport();
-		String tok = get_token();
-		if (p != cfg_port || b != cfg_bind_mode || t != cfg_transport || tok != cfg_token) {
+		if (p != cfg_port || b != cfg_bind_mode || t != cfg_transport) {
 			apply_config();
 			return;
 		}
