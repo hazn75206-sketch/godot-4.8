@@ -678,8 +678,53 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 		return mcp_tool_ret_error(vformat("Property tidak ditemukan: %s", prop));
 	}
 	Variant value = p_args.get("value", Variant());
-	bool ok = false;
-	Variant old = node->get(concrete, &ok);
+
+	// Auto-convert {r,g,b,a} JSON to Color(r,g,b,a) for color properties
+	if (prop.begins_with("color") || prop.begins_with("theme_override_colors")) {
+		if (value.get_type() == Variant::DICTIONARY) {
+			Dictionary d = value;
+			float r = d.get("r", 0.0);
+			float g = d.get("g", 0.0);
+			float b = d.get("b", 0.0);
+			float a = d.get("a", 1.0);
+			if (r >= 0 && r <= 1 && g >= 0 && g <= 1 && b >= 0 && b <= 1 && a >= 0 && a <= 1) {
+				value = Color(r, g, b, a);
+			}
+		}
+	}
+
+	// Auto-construct StyleBoxFlat resource from inline dict for theme_override_styles
+	if (prop.begins_with("theme_override_styles")) {
+		if (value.get_type() == Variant::DICTIONARY) {
+			Dictionary d = value;
+			if (d.has("type") && d["type"] == "StyleBoxFlat") {
+				Ref<StyleBoxFlat> sb;
+				sb.instantiate();
+				if (d.has("bg_color")) {
+					Variant bg = d["bg_color"];
+					if (bg.get_type() == Variant::STRING) {
+						sb->bg_color = Color(bg);
+					} else if (bg.get_type() == Variant::COLOR) {
+						sb->bg_color = bg;
+					}
+				}
+				if (d.has("margin")) {
+					sb->margin = d["margin"];
+				}
+				if (d.has("draw")) {
+					sb->draw = d["draw"];
+				}
+				if (d.has("shadow")) {
+					sb->shadow = d["shadow"];
+				}
+				if (d.has("border")) {
+					sb->border = d["border"];
+				}
+				value = sb;
+			}
+		}
+	}
+
 	EditorUndoRedoManager *ur = ei->get_editor_undo_redo();
 	ur->create_action(vformat("MCP: menetapkan %s.%s", p_args.get("path", String()), concrete));
 	ur->add_do_method(node, "set", concrete, value);
