@@ -730,10 +730,10 @@ static Variant _tool_set_node_property(const Dictionary &p_args) {
 		}
 		if (d.has("corner_radius_top_left") || d.has("corner_radius_top_right") ||
 			d.has("corner_radius_bottom_left") || d.has("corner_radius_bottom_right")) {
-			int tl = d.has("corner_radius_top_left") ? d["corner_radius_top_left"] : 0;
-			int tr = d.has("corner_radius_top_right") ? d["corner_radius_top_right"] : 0;
-			int br = d.has("corner_radius_bottom_right") ? d["corner_radius_bottom_right"] : 0;
-			int bl = d.has("corner_radius_bottom_left") ? d["corner_radius_bottom_left"] : 0;
+			int tl = d.has("corner_radius_top_left") ? (int)d["corner_radius_top_left"] : 0;
+			int tr = d.has("corner_radius_top_right") ? (int)d["corner_radius_top_right"] : 0;
+			int br = d.has("corner_radius_bottom_right") ? (int)d["corner_radius_bottom_right"] : 0;
+			int bl = d.has("corner_radius_bottom_left") ? (int)d["corner_radius_bottom_left"] : 0;
 			sb->set_corner_radius_individual(tl, tr, br, bl);
 		}
 		// Expand margins
